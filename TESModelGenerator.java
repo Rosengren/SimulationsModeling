@@ -2,15 +2,13 @@ import java.util.*;
 
 public class TESModelGenerator {
 
-  private static final double DEFAULT_A = 0;
-  private static final double DEFAULT_B = 1;
+  private static final double DEFAULT_A = 1;
+  private static final double DEFAULT_B = 0;
 
-  private Random random;
   private double a;
   private double b;
 
   public TESModelGenerator() {
-    random = new Random();
     a = DEFAULT_A;
     b = DEFAULT_B;
   }
@@ -18,13 +16,14 @@ public class TESModelGenerator {
   /**
    * setUniformRange
    *
-   * set the range used to generate uniformly
+   * Set the range used to generate uniformly
    * distributed random variables.
-   * Range is [a, b)
+   * Range is [b, a)
    */
   public void setUniformRange(double a, double b) {
     this.a = a;
     this.b = b;
+    System.out.println("Range set to [" + b + "," + a ")");
   }
 
   /**
@@ -39,14 +38,14 @@ public class TESModelGenerator {
    *
    * and < x > = modulo-1 operation
    */
-  public double generateNext(double previousRV) {
-    return modulo1(previousRV + nextUniformRV());
+  public double generateNext(double previousRV, double v) {
+    return modulo1(previousRV + nextUniformRV(v));
   }
 
   /**
    * modulo1
    *
-   * Performs modulo-1 operation on given input
+   * Perform modulo-1 operation on given input
    *
    *    < x > = x - floor(x)
    */
@@ -57,10 +56,10 @@ public class TESModelGenerator {
   /**
    * stitchTransform
    *
-   * perform a stich transformation on a given 
+   * Perform a stich transformation on a given 
    * random variablue u' and a stitching parameter xi
    */
-  public double strichTransform(double u, double xi) {
+  public double stitchTransform(double u, double xi) {
     if (u >= 0 && u <= xi) {
       return u / xi;
     } else { // xi <= u < 1
@@ -69,13 +68,27 @@ public class TESModelGenerator {
   }
 
   /**
+   * inverseTransform
+   *
+   * Apply the inverse transform method on an
+   * exponentially distributed random variable
+   *
+   * @param lambda : exponential dist. parameter
+   * @param r      : random variable
+   */
+  public double inverseExponentialTransform(double lambda, double r) {
+    return (-1 / lambda) * Math.log(1 - r);
+  }
+
+  /**
    * uniformRV
    *
-   * generate a uniform variable
-   * in the range of [a, b)
+   * Normalizes a given random variable
+   * in the range of [b, a)
    *
+   * @param v : the random variable to normalize
    */
-  private double nextUniformRV() {
-    return a + (b - a) * random.nextDouble();
+  private double nextUniformRV(double v) {
+    return b + (a - b) * v;
   }
 }
