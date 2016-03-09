@@ -1,3 +1,4 @@
+import java.text.DecimalFormat;
 import java.util.*;
 import java.io.*;
 
@@ -8,13 +9,11 @@ public class TrafficGenerator {
   /**
    * Generate Random Variables
    *
-   * @param type   : generate inter-arrival times (it)
-   *                  or service times (st)
-   * @param a      : upperLimit
-   * @param b      : lowerLimit
-   * @param xi     : stitching parameter
-   * @param ld/mu  : inter-arrival or service-times 
-   *                  parameter
+   * @param type : generate inter-arrival times (it) or service times (st)
+   * @param a  : upperLimit
+   * @param b  : lowerLimit
+   * @param xi : stitching parameter
+   * @param ld/mu  : inter-arrival or service-times parameter
    * @param input  : file containing random variables
    * @param output : file to output generated values
    */
@@ -54,6 +53,11 @@ public class TrafficGenerator {
       return;
     }
 
+    if (b > a) {
+      System.out.println("Error: the lower limit (b = " + b + ") is greate than upper limit (a = " + a + ")");
+      return;
+    }
+
     try {
       xi = Double.parseDouble(args[3]);
     } catch (Exception e) {
@@ -70,42 +74,35 @@ public class TrafficGenerator {
 
     String type = args[0];
     if (type.equals("st")) {
-      generateServiceTimes(a, b, xi, poissonParam, inputFile, outputFile);
-    } else if (type.equals("ai")) {
-      generateInterArrivalTimes(a, b, xi, poissonParam, inputFile, outputFile);
+      double lambda = 1.0 / poissonParam; // since service times accepts mu
+      generateTimes(a, b, xi, lambda, inputFile, outputFile);
+    } else if (type.equals("ia")) {
+      double lambda = poissonParam;
+      generateTimes(a, b, xi, lambda, inputFile, outputFile);
     } else {
       System.out.println("Invalid type : " + args[0] + ". Must be 'st' or 'ia'");
     }
   }
 
   /**
-   * generateInterArrivalTimes
-   *
-   * Output correlated random variables to
-   * output file 
-   */
-  public static void generateInterArrivalTimes(
-    double a, double b, double xi, double lambda,
-    String inputFile, String outputFile) {
-
-  }
-
-  /**
-   * generatedServiceTimes
+   * generateTimes
    *
    * Generate the services times from a given
    * set of random variables
    *
+   * @param a  : upper limit of random variable range
+   * @param b  : lower limit of random variable range
+   * @param xi : stiching parameter
+   * @param lambda : exponential distribution parameter
+   * @param inputFile  : source of random variables
+   * @param outputFile : destination of generated times
    */
-  public static void generateServiceTimes(
-    double a, double b, double xi, double mu,
-    String inputFile, String outputFile) {
-
-    double lambda = 1.0 / mu;
-
+  public static void generateTimes(double a, double b, double xi, 
+    double lambda, String inputFile, String outputFile) {
     // Set Range
     generator.setUniformRange(a, b);
 
+    DecimalFormat df = new DecimalFormat("#.#########");
 
     BufferedReader in = null;
     BufferedWriter out = null;
@@ -114,20 +111,25 @@ public class TrafficGenerator {
       out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
 
       String line = in.readLine();
-      double previousRV = Double.parseDouble(line);
-      double rv, s;
+      double previous_U_prime = Double.parseDouble(line);
+      double previous_u_n = generator.stitchTransform(previous_U_prime, xi);
+      double previous_inverse = generator.inverseExponentialTransform(lambda, previous_u_n);
+      out.write(df.format(previous_inverse));
+      out.newLine();
+
+      double rv;
       while ((line = in.readLine()) != null) {
 
         rv = Double.parseDouble(line);
 
-        double u_prime = generator.generateNext(previousRV, rv);
+        double u_prime = generator.generateNext(previous_U_prime, rv);
         double u_n = generator.stitchTransform(u_prime, xi);
         double inverse = generator.inverseExponentialTransform(lambda, u_n);
 
-        out.write(Double.toString(inverse));
+        out.write(df.format(inverse));
         out.newLine();
 
-        previousRV = rv;
+        previous_U_prime = u_prime;
       }
 
     } catch (Exception e) {
