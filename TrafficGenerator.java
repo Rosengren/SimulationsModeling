@@ -75,10 +75,10 @@ public class TrafficGenerator {
     String type = args[0];
     if (type.equals("st")) {
       double lambda = 1.0 / poissonParam; // since service times accepts mu
-      generateTimes(a, b, xi, lambda, inputFile, outputFile);
+      generateTimes(a, b, xi, lambda, inputFile, outputFile, type);
     } else if (type.equals("ia")) {
       double lambda = poissonParam;
-      generateTimes(a, b, xi, lambda, inputFile, outputFile);
+      generateTimes(a, b, xi, lambda, inputFile, outputFile, type);
     } else {
       System.out.println("Invalid type : " + args[0] + ". Must be 'st' or 'ia'");
     }
@@ -98,7 +98,7 @@ public class TrafficGenerator {
    * @param outputFile : destination of generated times
    */
   public static void generateTimes(double a, double b, double xi, 
-    double lambda, String inputFile, String outputFile) {
+    double lambda, String inputFile, String outputFile, String type) {
     // Set Range
     generator.setUniformRange(a, b);
 
@@ -110,6 +110,9 @@ public class TrafficGenerator {
       in = new BufferedReader(new FileReader(new File(inputFile)));
       out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
 
+      out.write("Type: " + type + ", interval = [" + b + ", " + a + "), xi = " + xi + ", lambda = " + lambda + ", in: " + inputFile);
+      out.newLine();
+
       String line = in.readLine();
       double previous_U_prime = Double.parseDouble(line);
       double previous_u_n = generator.stitchTransform(previous_U_prime, xi);
@@ -119,9 +122,7 @@ public class TrafficGenerator {
 
       double rv;
       while ((line = in.readLine()) != null) {
-
         rv = Double.parseDouble(line);
-
         double u_prime = generator.generateNext(previous_U_prime, rv);
         double u_n = generator.stitchTransform(u_prime, xi);
         double inverse = generator.inverseExponentialTransform(lambda, u_n);
