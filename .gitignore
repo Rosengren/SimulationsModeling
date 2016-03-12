@@ -2,3 +2,4 @@
 *.zip
 out.csv
 results/*
+*.class

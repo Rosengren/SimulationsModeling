@@ -1,16 +1,23 @@
+import java.text.DecimalFormat;
 import java.util.*;
 import java.io.*;
 
 public class SingleServerQueue {
 
+  private static final String ARRIVAL_EVENT = "Arrival";
+  private static final String DEPARTURE_EVENT = "Departure";
+
   /** generates new arrival times and service times **/
   private EventGenerator eventGenerator;
 
-  /** Future Event List **/
-  private List<Event> eventList;
+  /** Future Event list (set) ordered by event time **/
+  private TreeSet<Event> futureEventList;
 
-  /** packets in the queue **/
-  private Queue<Double> packetQueue;
+  /** List of collected statistics **/
+  private List<Statistic> statistics;
+
+  /** customer queue **/
+  private Queue<Double> queue;
 
   /** total number of departures **/
   private long numberOfDepartures;
@@ -18,79 +25,84 @@ public class SingleServerQueue {
   /** total number of arrivals **/
   private long numberOfArrivals;
 
+  /** total time server is in use **/
+  private double totalServerUsageTime;
+
   /** current clock time **/
   private double clock;
 
   /** Server in use **/
   private boolean isBusy;
 
-  private double timeTillNextEvent;
-  private double timeFree;
-  private double totalServerFreeTime;
-  private double totalWaitingTime;
 
+  /**
+   * SingleServerQueue
+   *
+   * @param eventGenerator for generating arrival times
+   *        and service times
+   */
   public SingleServerQueue(EventGenerator eventGenerator) {
     this.eventGenerator = eventGenerator;
-    eventList = new ArrayList<Event>();
-    packetQueue = new LinkedList<Double>();
-    numberOfArrivals = 0;
-    numberOfDepartures = 0;
+
+    futureEventList = new TreeSet<Event>(new EventComparator());
+    statistics = new ArrayList<Statistic>();
+    queue = new LinkedList<Double>();
+
     clock = 0.0;
     isBusy = false;
-    timeTillNextEvent = 0.0;
-    timeFree = 0.0;
-    totalServerFreeTime = 0.0;
-    totalWaitingTime = 0.0;
+    numberOfArrivals = 0;
+    numberOfDepartures = 0;
+    totalServerUsageTime = 0.0;
   }
 
+  /**
+   * run
+   *
+   * run the simulation.
+   * simulation ends when an event in the
+   * futureEventList has time t = -1
+   */
   public void run() throws IOException {
-    // initialize simulator
-
-    // if event is Double.POSITIVE_INFINITY, then we've reached the end of the file
 
     arrivalEvent(); // start the simulation
 
     Event nextEvent;
-    while (!eventList.isEmpty()) {
-      nextEvent = eventList.remove(0); // first element
+    while (!futureEventList.isEmpty()) {
+      nextEvent = futureEventList.pollFirst(); // first element
 
-      if (nextEvent.type == "D") {
+      if (nextEvent.time < 0) {
+        System.out.println("Reached end of events list");
+        break;
+      } else {
 
-        if (nextEvent.time == -1) {
-          System.out.println("Reached End of Service Time File");
-          break;
-        }
+        // Advance clock to next event time
+        clock = nextEvent.time;
+      }
 
+      if (nextEvent.type.equals(DEPARTURE_EVENT)) {
         departureEvent();
-        System.out.println("New Departure Event");
-      } else if (nextEvent.type == "A") {
 
-        if (nextEvent.time == -1) {
-          System.out.println("Reached End of Arrival Time File");
-          break;
-        }
-
+      } else if (nextEvent.type.equals(ARRIVAL_EVENT)) {
         arrivalEvent();
-        System.out.println("New Arrival Event");
+
       }
     }
 
     closeGenerator();
   }
 
-  public String getResults() {
-    return null;
-    // TODO: return statistics
-  }
-
-
+  /**
+   * arrivalEvent
+   *
+   * simulate arrival event at time t = clock
+   */
   private void arrivalEvent() throws IOException {
 
     // Is LS(t) = 1 ?
     if (isBusy) {
 
       // Increase LQ(t) by 1
-      packetQueue.add(clock);
+      queue.add(clock);
     } else {
       // Set LS(t) = 1
       isBusy = true;
@@ -98,33 +110,40 @@ public class SingleServerQueue {
       // Generate Service Time s*;
       // Schedule new Departure event
       // at time t + s*;
-      eventList.add(new Event("D", clock + eventGenerator.nextServiceTime()));
+      double serviceTime = clock + eventGenerator.nextServiceTime();
+      totalServerUsageTime += serviceTime;
+      futureEventList.add(new Event(DEPARTURE_EVENT, serviceTime));
     }
 
     // Generate interarrival time a*;
     // Schedule next arrival event
     // at time t + a*;
-    eventList.add(new Event("A", clock + eventGenerator.nextArrivalTime()));
+    futureEventList.add(new Event(ARRIVAL_EVENT, clock + eventGenerator.nextArrivalTime()));
 
-    // Collect Statistics
+    numberOfArrivals += 1;
     collectStatistics();
 
     // Return control to time-advance
     // routine to continue simulation
   }
 
+  /**
+   * departureEvent
+   *
+   * simulate departure event at time t = clock
+   */
   private void departureEvent() throws IOException {
 
     // Is LQ(t) > 0 ?
-    if (packetQueue.size() > 0) {
+    if (queue.size() > 0) {
 
       // Reduce LQ(t) by 1
-      packetQueue.remove();
+      queue.remove();
 
       // Generate service time s*;
       // Schedule new departure
       // event at time t + s*;
-      eventList.add(new Event("D", clock + eventGenerator.nextServiceTime()));
+      futureEventList.add(new Event(DEPARTURE_EVENT, clock + eventGenerator.nextServiceTime()));
 
     } else {
 
@@ -132,17 +151,61 @@ public class SingleServerQueue {
       isBusy = false;
     }
 
+    numberOfDepartures += 1;
     collectStatistics();
 
     // Return control to time-advance
     // routine to continue simulation
   }
 
+  /**
+   * collectStatistics
+   *
+   * collect and store statistics
+   * at the current clock time of
+   * the simulation
+   */
   private void collectStatistics() {
 
+    double serverUtilization = 0.0;
+
+    if (clock != 0) {
+      // Server Utilization = Time server is busy / total running time
+      serverUtilization = totalServerUsageTime / clock;
+    }
+
+
+    Statistic statistic = new Statistic(
+      this.clock,
+      new ArrayList(this.futureEventList), // clone
+      this.numberOfDepartures,
+      this.queue.size(),
+      serverUtilization);
+
+    // System.out.println("Gathering Statistics: " + statistic.toString());
+    statistics.add(statistic);
   }
 
+  /**
+   * getStatistics
+   *
+   * return list of gathered statistics
+   */  
+  public List<Statistic> getStatistics() {
+    return statistics;
+  }
+
+
+  /**
+   * Event
+   *
+   * object representing an event
+   * @param type of event (ex: Arrival, Departure)
+   * @param time that event takes place
+   */
   private static class Event {
+
+    private DecimalFormat df;
 
     /** Event Type **/
     public String type;
@@ -153,9 +216,62 @@ public class SingleServerQueue {
     public Event(String type, double time) {
       this.type = type;
       this.time = time;
+
+      df = new DecimalFormat("#.#########");
+    }
+
+    @Override
+    public String toString() {
+      return "(" + type + ", " + df.format(time) + ")";
     }
   }
 
+  public static class Statistic {
+
+    private DecimalFormat df;
+
+    public double clock;
+    public List<Event> futureEventList;
+    public long numberOfDepartures;
+    public long queueSize;
+    public double serverUtilization;
+
+    public Statistic(double clock, List<Event> futureEventList,
+      long numberOfDepartures, long queueSize, double serverUtilization) {
+      this.clock = clock;
+      this.futureEventList = futureEventList;
+      this.numberOfDepartures = numberOfDepartures;
+      this.queueSize = queueSize;
+      this.serverUtilization = serverUtilization;
+
+      df = new DecimalFormat("#.#########");
+    }
+
+    @Override
+    public String toString() {
+      String fel = "";
+      for (Event e : futureEventList) {
+        fel += e.toString() + ", ";
+      }
+      return "Clock: " + df.format(clock) + 
+             ", Future Event List: [" + fel + "]" + 
+             ", Number of Departures: " + numberOfDepartures +
+             ", Queue Size: " + queueSize +
+             ", Server Utilization: " + df.format(serverUtilization);
+    }
+  }
+
+  private static class EventComparator implements Comparator<Event> {
+    public int compare(Event one, Event two) {
+      return Double.compare(one.time, two.time);
+    }
+  }
+
+  /**
+   * closeGenerator
+   *
+   * close file input streams
+   */
   public void closeGenerator() {
     eventGenerator.close();
   }

@@ -13,7 +13,7 @@ public class EventGenerator {
 
   public double nextArrivalTime() throws IOException {
 
-    double nextTime = -1;
+    double nextTime = Double.NEGATIVE_INFINITY;
     String nextLine = "";
 
     if (interArrivalTimes != null) {
@@ -29,7 +29,7 @@ public class EventGenerator {
 
   public double nextServiceTime() throws IOException {
 
-    double nextTime = -1;
+    double nextTime = Double.NEGATIVE_INFINITY;
     String nextLine = "";
 
     if (serviceTimes != null) {

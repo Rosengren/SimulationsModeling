@@ -19,14 +19,21 @@ public class Simulator {
     String serviceTimesFile = args[1];
     String outputFile = args[2];
 
-    run(interArrivalTimesFile, serviceTimesFile);
+    run(interArrivalTimesFile, serviceTimesFile, outputFile);
   }
 
   public static void run(String interArrivalTimesFile,
-    String serviceTimesFile) throws IOException {
+    String serviceTimesFile, String outputFile) throws IOException {
 
     EventGenerator g = new EventGenerator(interArrivalTimesFile, serviceTimesFile);
     SingleServerQueue q = new SingleServerQueue(g);
     q.run();
+
+    BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
+
+    for (SingleServerQueue.Statistic stat : q.getStatistics()) {
+      out.write(stat.toString());
+      out.newLine();
+    }
   }
 }
