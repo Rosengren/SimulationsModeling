@@ -2,6 +2,13 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.io.*;
 
+/**
+ * Implementation of a Single Server Simulation
+ * with a First-In-First-Out Queue
+ *
+ * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
+ * @version 11/03/16
+ */
 public class SingleServerQueue {
 
   private static final String ARRIVAL_EVENT = "Arrival";
@@ -195,11 +202,10 @@ public class SingleServerQueue {
     return statistics;
   }
 
-
   /**
    * Event
    *
-   * object representing an event
+   * Object representing an event
    * @param type of event (ex: Arrival, Departure)
    * @param time that event takes place
    */
@@ -226,6 +232,17 @@ public class SingleServerQueue {
     }
   }
 
+  /**
+   * Statistic
+   *
+   * Statistics of the simulation
+   * at a given clock time.
+   * @param current time
+   * @param future event list
+   * @param number of departures
+   * @param size of customer queue
+   * @param server utilization
+   */
   public static class Statistic {
 
     private DecimalFormat df;
@@ -261,6 +278,11 @@ public class SingleServerQueue {
     }
   }
 
+  /**
+   * EventComparator
+   *
+   * Used for sorting events by time
+   */
   private static class EventComparator implements Comparator<Event> {
     public int compare(Event one, Event two) {
       return Double.compare(one.time, two.time);

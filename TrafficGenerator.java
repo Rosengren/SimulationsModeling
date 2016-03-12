@@ -2,6 +2,12 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.io.*;
 
+/**
+ * Implementation of a traffic generator.
+ *
+ * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
+ * @version 03/11/16
+ */
 public class TrafficGenerator {
 
   private static TESModelGenerator generator;
