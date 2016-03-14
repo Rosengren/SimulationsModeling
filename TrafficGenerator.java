@@ -15,7 +15,6 @@ public class TrafficGenerator {
   /**
    * Generate Random Variables
    *
-   * @param type : generate inter-arrival times (it) or service times (st)
    * @param a  : upperLimit
    * @param b  : lowerLimit
    * @param xi : stitching parameter
@@ -26,13 +25,12 @@ public class TrafficGenerator {
   public static void main(String[] args) {
      generator = new TESModelGenerator();
 
-    if (args.length < 7) {
+    if (args.length < 6) {
       System.out.println("Missing Parameters. Must specify the following:\n" +
-        "type   = 'st' for service-times or 'it' for inter-arrival times\n" +
         "a      = upper limit of random variable interval\n" +
         "b      = lower limit of random variable interval\n" +
         "xi     = stitching parameter\n" +
-        "ld/mu  = lambda or mu parameter depending on type\n" +
+        "ld/mu  = lambda or mu parameter\n" +
         "input  = filename containing random variables [0, 1)\n" +
         "output = filename to output results");
       return;
@@ -41,21 +39,21 @@ public class TrafficGenerator {
     double a;
     double b;
     double xi;
-    double poissonParam;
-    String inputFile = args[5];
-    String outputFile = args[6];
+    double lambda;
+    String inputFile = args[4];
+    String outputFile = args[5];
 
     try {
-      a = Double.parseDouble(args[1]);
+      a = Double.parseDouble(args[0]);
     } catch(Exception e) {
-      System.out.println("Invalid upper limit (a): " + args[1]);
+      System.out.println("Invalid upper limit (a): " + args[0]);
       return;
     }
 
     try {
-      b = Double.parseDouble(args[2]);
+      b = Double.parseDouble(args[1]);
     } catch (Exception e) {
-      System.out.println("Invalid lower limit (b): " + args[2]);
+      System.out.println("Invalid lower limit (b): " + args[1]);
       return;
     }
 
@@ -65,29 +63,20 @@ public class TrafficGenerator {
     }
 
     try {
-      xi = Double.parseDouble(args[3]);
+      xi = Double.parseDouble(args[2]);
     } catch (Exception e) {
-      System.out.println("Invalid stitching parameter (xi): " + args[3]);
+      System.out.println("Invalid stitching parameter (xi): " + args[2]);
       return;
     }
 
     try {
-      poissonParam = Double.parseDouble(args[4]);
+      lambda = Double.parseDouble(args[3]);
     } catch(Exception e) {
-      System.out.println("Invalid lambda or mu value: " + args[4]);
+      System.out.println("Invalid lambda or mu value: " + args[3]);
       return;
     }
 
-    String type = args[0];
-    if (type.equals("st")) {
-      double lambda = 1.0 / poissonParam; // since service times accepts mu
-      generateTimes(a, b, xi, lambda, inputFile, outputFile, type);
-    } else if (type.equals("ia")) {
-      double lambda = poissonParam;
-      generateTimes(a, b, xi, lambda, inputFile, outputFile, type);
-    } else {
-      System.out.println("Invalid type : " + args[0] + ". Must be 'st' or 'ia'");
-    }
+    generateTimes(a, b, xi, lambda, inputFile, outputFile);
   }
 
   /**
@@ -104,7 +93,7 @@ public class TrafficGenerator {
    * @param outputFile : destination of generated times
    */
   public static void generateTimes(double a, double b, double xi, 
-    double lambda, String inputFile, String outputFile, String type) {
+    double lambda, String inputFile, String outputFile) {
     // Set Range
     generator.setUniformRange(a, b);
 
@@ -116,7 +105,7 @@ public class TrafficGenerator {
       in = new BufferedReader(new FileReader(new File(inputFile)));
       out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
 
-      out.write("Type: " + type + ", interval = [" + b + ", " + a + "), xi = " + xi + ", lambda = " + lambda + ", in: " + inputFile);
+      out.write("Interval = [" + b + ", " + a + "), xi = " + xi + ", lambda = " + lambda + ", in: " + inputFile);
       out.newLine();
 
       String line = in.readLine();

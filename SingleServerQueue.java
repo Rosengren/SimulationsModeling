@@ -32,14 +32,23 @@ public class SingleServerQueue {
   /** total number of arrivals **/
   private long numberOfArrivals;
 
-  /** total time server is in use **/
-  private double totalServerUsageTime;
-
   /** current clock time **/
   private double clock;
 
   /** Server in use **/
   private boolean isBusy;
+
+  private String outputFormat;
+
+  private double currentStartTime;
+
+  private double totalServerFreeTime;
+
+  private double delay;
+
+  private double previousServiceTime;
+
+  private double previousArrivalTime;
 
 
   /**
@@ -48,18 +57,25 @@ public class SingleServerQueue {
    * @param eventGenerator for generating arrival times
    *        and service times
    */
-  public SingleServerQueue(EventGenerator eventGenerator) {
+  public SingleServerQueue(EventGenerator eventGenerator, String outputFormat) {
     this.eventGenerator = eventGenerator;
 
     futureEventList = new TreeSet<Event>(new EventComparator());
     statistics = new ArrayList<Statistic>();
     queue = new LinkedList<Double>();
 
+    this.outputFormat = outputFormat;
+
     clock = 0.0;
     isBusy = false;
     numberOfArrivals = 0;
     numberOfDepartures = 0;
-    totalServerUsageTime = 0.0;
+    currentStartTime = 0.0;
+    totalServerFreeTime = 0.0;
+
+    delay = 0.0;
+    previousArrivalTime = 0.0;
+    previousServiceTime = 0.0;
   }
 
   /**
@@ -71,7 +87,7 @@ public class SingleServerQueue {
    */
   public void run() throws IOException {
 
-    arrivalEvent(); // start the simulation
+    initialConditions(); // start simulation
 
     Event nextEvent;
     while (!futureEventList.isEmpty()) {
@@ -99,27 +115,74 @@ public class SingleServerQueue {
   }
 
   /**
+   * initialConditions
+   *
+   * start the clock at the first arrival time
+   * and setup departure of first event
+   */
+  private void initialConditions() throws IOException {
+
+    // Set clock to first arrival time
+    clock = eventGenerator.nextArrivalTime();
+
+    double arrivalTime = clock;
+
+
+    // Set LS(t) = 1
+    isBusy = true;
+    totalServerFreeTime += clock;
+
+    // Generate Service Time s*;
+    // Schedule new Departure event
+    // at time t + s*;
+    double serviceTime = eventGenerator.nextServiceTime();
+    futureEventList.add(new Event(DEPARTURE_EVENT, clock + serviceTime));
+
+    // Generate interarrival time a*;
+    // Schedule next arrival event
+    // at time t + a*;
+    futureEventList.add(new Event(ARRIVAL_EVENT, clock + eventGenerator.nextArrivalTime()));
+
+    numberOfArrivals += 1;
+
+    delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
+
+    collectStatistics();
+
+    previousArrivalTime = arrivalTime;
+    previousServiceTime = serviceTime;
+
+    // Return control to time-advance
+    // routine to continue simulation
+  }
+
+  /**
    * arrivalEvent
    *
    * simulate arrival event at time t = clock
    */
   private void arrivalEvent() throws IOException {
 
+    double serviceTime = 0.0;
+    double arrivalTime = clock;
+
     // Is LS(t) = 1 ?
     if (isBusy) {
 
       // Increase LQ(t) by 1
-      queue.add(clock);
+      serviceTime = eventGenerator.nextServiceTime();
+      queue.add(serviceTime);
     } else {
+
       // Set LS(t) = 1
       isBusy = true;
+      totalServerFreeTime += clock - currentStartTime;
 
       // Generate Service Time s*;
       // Schedule new Departure event
       // at time t + s*;
-      double serviceTime = clock + eventGenerator.nextServiceTime();
-      totalServerUsageTime += serviceTime;
-      futureEventList.add(new Event(DEPARTURE_EVENT, serviceTime));
+      serviceTime = eventGenerator.nextServiceTime();
+      futureEventList.add(new Event(DEPARTURE_EVENT, clock + serviceTime));
     }
 
     // Generate interarrival time a*;
@@ -128,7 +191,13 @@ public class SingleServerQueue {
     futureEventList.add(new Event(ARRIVAL_EVENT, clock + eventGenerator.nextArrivalTime()));
 
     numberOfArrivals += 1;
+
+    delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
+
     collectStatistics();
+
+    previousArrivalTime = arrivalTime;
+    previousServiceTime = serviceTime;
 
     // Return control to time-advance
     // routine to continue simulation
@@ -145,17 +214,19 @@ public class SingleServerQueue {
     if (queue.size() > 0) {
 
       // Reduce LQ(t) by 1
-      queue.remove();
+      double serviceTime = queue.remove();
 
       // Generate service time s*;
       // Schedule new departure
       // event at time t + s*;
-      futureEventList.add(new Event(DEPARTURE_EVENT, clock + eventGenerator.nextServiceTime()));
+      futureEventList.add(new Event(DEPARTURE_EVENT, clock + serviceTime));
 
     } else {
 
       // Set LS(t) = 0
       isBusy = false;
+
+      currentStartTime = clock;
     }
 
     numberOfDepartures += 1;
@@ -178,7 +249,7 @@ public class SingleServerQueue {
 
     if (clock != 0) {
       // Server Utilization = Time server is busy / total running time
-      serverUtilization = totalServerUsageTime / clock;
+      serverUtilization = (clock - totalServerFreeTime) / clock;
     }
 
 
@@ -187,9 +258,11 @@ public class SingleServerQueue {
       new ArrayList(this.futureEventList), // clone
       this.numberOfDepartures,
       this.queue.size(),
-      serverUtilization);
+      serverUtilization,
+      isBusy ? 1: 0,
+      delay,
+      outputFormat);
 
-    // System.out.println("Gathering Statistics: " + statistic.toString());
     statistics.add(statistic);
   }
 
@@ -228,7 +301,7 @@ public class SingleServerQueue {
 
     @Override
     public String toString() {
-      return "(" + type + ", " + df.format(time) + ")";
+      return "(" + type + "; " + df.format(time) + ")";
     }
   }
 
@@ -247,19 +320,27 @@ public class SingleServerQueue {
 
     private DecimalFormat df;
 
+    private String format;
+
     public double clock;
     public List<Event> futureEventList;
     public long numberOfDepartures;
     public long queueSize;
     public double serverUtilization;
+    public double delay;
+    public int serverInUse;
 
     public Statistic(double clock, List<Event> futureEventList,
-      long numberOfDepartures, long queueSize, double serverUtilization) {
+      long numberOfDepartures, long queueSize, double serverUtilization, int serverInUse,
+      double delay, String format) {
       this.clock = clock;
       this.futureEventList = futureEventList;
       this.numberOfDepartures = numberOfDepartures;
       this.queueSize = queueSize;
       this.serverUtilization = serverUtilization;
+      this.serverInUse = serverInUse;
+      this.delay = delay;
+      this.format = format;
 
       df = new DecimalFormat("#.#########");
     }
@@ -268,13 +349,26 @@ public class SingleServerQueue {
     public String toString() {
       String fel = "";
       for (Event e : futureEventList) {
-        fel += e.toString() + ", ";
+        fel += e.toString() + "; ";
       }
-      return "Clock: " + df.format(clock) + 
-             ", Future Event List: [" + fel + "]" + 
-             ", Number of Departures: " + numberOfDepartures +
-             ", Queue Size: " + queueSize +
-             ", Server Utilization: " + df.format(serverUtilization);
+
+      if (format.equals("csv") || format.equals("csv-no-header")) {
+        return df.format(clock) +
+               ",[" + fel + "]" + 
+               "," + numberOfDepartures +
+               "," + queueSize +
+               "," + serverInUse +
+               "," + delay +
+               "," + df.format(serverUtilization);
+      } else {
+        return "Clock: " + df.format(clock) + 
+               ", Future Event List: [" + fel + "]" + 
+               ", Number of Departures: " + numberOfDepartures +
+               ", Queue Size: " + queueSize +
+               ", Server in use: " + serverInUse +
+               ", Delay: " + delay +
+               ", Server Utilization: " + df.format(serverUtilization);
+      }
     }
   }
 
