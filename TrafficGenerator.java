@@ -10,7 +10,7 @@ import java.io.*;
  */
 public class TrafficGenerator {
 
-  private static TESModelGenerator generator;
+  private static TESModelGenerator generator = new TESModelGenerator();
 
   /**
    * Generate Random Variables
@@ -23,7 +23,6 @@ public class TrafficGenerator {
    * @param output : file to output generated values
    */
   public static void main(String[] args) {
-     generator = new TESModelGenerator();
 
     if (args.length < 6) {
       System.out.println("Missing Parameters. Must specify the following:\n" +

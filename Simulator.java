@@ -48,6 +48,9 @@ public class Simulator {
     if (outputFormat.equals("csv")) {
       out.write("Time,Future Event List,Number of Departures,Queue Size,Server Occupied,Delay,Server Utilization");
       out.newLine();
+    } else if (outputFormat.equals("delay")) {
+      out.write("Delay,Number of Packets,Utilization");
+      out.newLine();
     }
 
     // Output results to a file

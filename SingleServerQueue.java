@@ -360,6 +360,11 @@ public class SingleServerQueue {
                "," + serverInUse +
                "," + delay +
                "," + df.format(serverUtilization);
+      } else if (format.equals("delay")) {
+        long numberOfPackets = queueSize + serverInUse;
+        return df.format(delay) +
+               "," + numberOfPackets +
+               "," + df.format(serverUtilization);
       } else {
         return "Clock: " + df.format(clock) + 
                ", Future Event List: [" + fel + "]" + 
