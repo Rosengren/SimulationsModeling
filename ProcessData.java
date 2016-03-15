@@ -12,12 +12,14 @@ public class ProcessData {
   private static final String OUTPUT_PROCESSED_FOLDER = "processed";
   private static final int NUMBER_OF_REPLICAS = 20;
 
-  private static final double[] intervals = new double[]{0.1,0.01,0.5};
+  private static final double[] intervals = new double[]{0.01,0.1,0.5};
   private static final int[] lambdas = new int[]{1,3,5,7,9};
   private static final int mu = 10;
   private static final double xi = 0.7;
 
   public void run() throws IOException {
+
+    System.out.println("File,Utilization,Packet Delay,Packet Delay CI, Packets in System, Packets in System CI");
 
     String inFolder = OUTPUT_FOLDER + File.separator + INPUT_SIMS_FOLDER + File.separator;
 
@@ -26,20 +28,21 @@ public class ProcessData {
     String combinedOutFile = "";
     String inFile = "";
 
-    List<Map<Integer, Row>> utilMapList;
-    Map<Integer, Row> utilMap;
-
     BufferedReader replica;
     BufferedWriter out;
     BufferedWriter combinedOut;
+    
+    for (double interval : intervals) {
+      for (int lambda :lambdas) {
 
-    for (int lambda :lambdas) {
-      // lambda = 9;
-      for (double interval : intervals) {
-        // interval = 0.5;
-        utilMapList = new ArrayList<Map<Integer, Row>>();
+        double totalReplicaUtilization = 0.0;
+        double totalReplicaPacketDelay = 0.0;
+        double totalReplicaPacketsInSystem = 0.0;
 
-        for (int i = 0; i < 20; i++) {
+        List<Double> replicaAvgPacketDelayList = new ArrayList<Double>();
+        List<Double> replicaAvgPacketsInSystemList = new ArrayList<Double>();
+
+        for (int i = 0; i < NUMBER_OF_REPLICAS; i++) {
           outFile = outFolder + "sim-" + lambda + "-" + mu + "-" + interval + File.separator + "replica-result-" + i + ".csv";
 
           inFile = inFolder + "sim-" + lambda + "-" + mu + "-" + interval + File.separator + "replica-" + i + FILE_EXT;
@@ -47,37 +50,42 @@ public class ProcessData {
 
           replica.readLine(); // skip headers
 
-          utilMap = new HashMap<Integer, Row>();
-
-          // fill map
-          for (int j = 0; j < 101; j++) {
-            utilMap.put(j, new Row());
-          }
-
           String line;
 
           double totalUtilization = 0.0;
+          double totalPacketDelay = 0.0;
+          double totalPacketsInSystem = 0.0;
+
           double count = 0;
+
+          double max = 0;
           while ((line = replica.readLine()) != null) {
 
 
             String[] data = line.split(",");
 
-
-            // Double utilDouble = Double.parseDouble(data[2]) * 100;
             Double utilDouble = Double.parseDouble(data[2]);
             totalUtilization += utilDouble;
+
+            Double packetDelay = Double.parseDouble(data[0]);
+            totalPacketDelay += packetDelay;
+
+            if (packetDelay > max) {
+              max = packetDelay;
+            }
+            Double numOfPackets = Double.parseDouble(data[1]);
+            totalPacketsInSystem += numOfPackets;
+
             count += 1;
-            // Double packetDelay = Double.parseDouble(data[0]);
-            // double numOfPackets = Double.parseDouble(data[1]);
-
-            // int util = utilDouble.intValue();
-            // utilMap.get(util).addBoth(packetDelay, numOfPackets);
-
           }
 
           double avgUtilization = totalUtilization / count;
-          System.out.println("AVG Utilization = " + avgUtilization);
+          double avgPacketDelay = totalPacketDelay / count;
+
+          double avgPacketsInSystem = totalPacketsInSystem / count;
+
+          replicaAvgPacketsInSystemList.add(avgPacketsInSystem);
+          replicaAvgPacketDelayList.add(avgPacketDelay);
 
           replica.close();
 
@@ -95,156 +103,137 @@ public class ProcessData {
           // out.close();
           // System.out.println("Finished with: " + outFile);
 
-          // utilMapList.add(utilMap);
-          // return;
-
-        // }
-
-        // TODO: Since we are gathering each replica,
-        // output a new file with the average of all the replicas
-        // Can probably also calculate the confidence intervals
-
-        // Handle utilMapList Here
-
-        // Map<Integer, Row> combinedResults = new HashMap<Integer, Row>();
-        // for (int j = 0; j < 101; j++) {
-        //   combinedResults.put(j, new Row());
-        // }
-
-        // for (int j = 0; j < 101; j++) {
-
-        //   double packetSum = 0.0;
-        //   double delaySum = 0.0;
-        //   List<Double> packets = new ArrayList<Double>();
-        //   List<Double> delays = new ArrayList<Double>();
-        //   for (Map<Integer, Row> map : utilMapList) { // each replica
-
-        //     Row rep = map.get(j);
-        //     combinedResults.get(j).addBoth(rep.packetDelay, rep.packetsInSystem, rep.delayCount, rep.packetCount);
-
-        //     if (rep.packetCount > 0) {
-        //       packetSum += rep.packetsInSystem / rep.packetCount;
-        //       packets.add(rep.packetsInSystem / rep.packetCount);
-        //     } else {
-        //       packets.add(0.0);
-        //     }
-
-        //     if (rep.delayCount > 0) {
-        //       delaySum += rep.packetDelay / rep.delayCount;
-        //       delays.add(rep.packetDelay / rep.delayCount);
-        //     } else {
-        //       delays.add(0.0);
-        //     }
-        //   }
-
-        //   // calculate Packet Interval
-        //   double packetAvg = packetSum / NUMBER_OF_REPLICAS;
-
-        //   double packetSDSum = 0;
-        //   for (double packet : packets) {
-        //     packetSDSum += Math.pow(packet - packetAvg, 2); 
-        //   }
-
-        //   double pktSSD = Math.sqrt(packetSDSum / (NUMBER_OF_REPLICAS - 1));
-        //   combinedResults.get(j).setPktInteval((T_STATISTIC_19_0975 * pktSSD) / Math.sqrt(NUMBER_OF_REPLICAS - 1));
-
-          // System.out.println("Packets: " + packets.toString());
-          // System.out.println("Packet Sum: " + packetSum + " packet average: " + packetAvg + " packetSDSum: " + packetSDSum
-          //   + " pktSSD: " + pktSSD);
-
-
-          // calculate delay Interval
-          // double delayAvg = delaySum / NUMBER_OF_REPLICAS;
-
-          // double delaySDSum = 0;
-          // for (Double delay : delays) {
-          //   delaySDSum += Math.pow(delay - delayAvg, 2);
-          // }
-
-          // double delaySSD = Math.sqrt(delaySDSum / (NUMBER_OF_REPLICAS - 1));
-          // combinedResults.get(j).setDelayInterval((T_STATISTIC_19_0975  * delaySSD) / Math.sqrt(NUMBER_OF_REPLICAS - 1));
-        
+          totalReplicaUtilization += avgUtilization;
+          totalReplicaPacketDelay += avgPacketDelay;
+          totalReplicaPacketsInSystem += avgPacketsInSystem;
         }
 
-        
+        double avgReplicaUtilization = totalReplicaUtilization / NUMBER_OF_REPLICAS;
 
-        // combinedOutFile = outFolder + "sim-" + lambda + "-" + mu + "-" + interval + File.separator + "replica-result-combined-" + lambda + "-" + mu + "-" + interval + ".csv";
-        // combinedOut = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(combinedOutFile), "utf-8"));
+        double avgReplicaPacketDelay = totalReplicaPacketDelay / NUMBER_OF_REPLICAS;
+        double avgReplicaPacketsInSystem = totalReplicaPacketsInSystem / NUMBER_OF_REPLICAS;
 
-        // combinedOut.write("Utilization,Average Packet Delay,Avg Pkt Confidence,Packets in System,Pkt in System Confidence");
-        // combinedOut.newLine();
+        // CALCULATE CONFIDENCE HERE:
 
-        // for (int utilKey : combinedResults.keySet()) {
-        //   combinedOut.write(utilKey + "," + combinedResults.get(utilKey).getCSV(true));
-        //   combinedOut.newLine();
-        // }
+        double sumPacketsInSystem = 0.0;
+        double sumPacketDelay = 0.0;
+        for (int j = 0; j < NUMBER_OF_REPLICAS; j++) {
+          sumPacketsInSystem += Math.pow(replicaAvgPacketsInSystemList.get(j) - avgReplicaPacketsInSystem, 2);
+          sumPacketDelay += Math.pow(replicaAvgPacketDelayList.get(j) - avgReplicaPacketDelay, 2);
+        }
 
-        // combinedOut.close();
-        // System.out.println("Finished combining: " + combinedOutFile);
-        return;
+        double ssdPacketsInSystem = Math.sqrt(sumPacketsInSystem / (NUMBER_OF_REPLICAS - 1));
+        double ssdPacketDelay = Math.sqrt(sumPacketDelay / (NUMBER_OF_REPLICAS - 1));
+
+        double packetsInSystemCI = (T_STATISTIC_19_0975 * ssdPacketsInSystem) / Math.sqrt(NUMBER_OF_REPLICAS - 1);
+        double packetDelayCI = (T_STATISTIC_19_0975 * ssdPacketDelay) / Math.sqrt(NUMBER_OF_REPLICAS - 1);
+
+       System.out.println(outFile + 
+               "," + avgReplicaUtilization + 
+               "," + avgReplicaPacketDelay + 
+               "," + packetDelayCI +
+               "," + avgReplicaPacketsInSystem +
+               "," + packetsInSystemCI); 
       }
     }
   }
 
-  private class Row {
 
-    public double packetsInSystem;
-    public long packetCount;
-    public double packetDelay;
-    public long delayCount;
-    public double pktInteval;
-    public double delayInterval;
+  public void runOccupencies() throws IOException {
 
-    public Row() {
-      packetsInSystem = 0.0;
-      packetDelay = 0.0;
-      delayCount = 0;
-      packetCount = 0;
-      pktInteval = 0.0;
-      delayInterval = 0.0;
-    }
+    System.out.println("File,Number of Packets,Number of Occurences,Confidence Interval");
 
-    public void addBoth(double packetDelay, double packetsInSystem) {
-      this.packetDelay += packetDelay;
-      this.packetsInSystem += packetsInSystem;
-      this.delayCount += 1;
-      this.packetCount += 1;
-    }
+    String inFolder = OUTPUT_FOLDER + File.separator + INPUT_SIMS_FOLDER + File.separator;
 
-    public void addBoth(double packetDelay, double packetsInSystem, long delayCount, long packetCount) {
-      this.packetDelay += packetDelay;
-      this.packetsInSystem += packetsInSystem;
-      this.delayCount += delayCount;
-      this.packetCount += packetCount;
-    }
+    String outFolder = OUTPUT_FOLDER + File.separator + OUTPUT_PROCESSED_FOLDER + File.separator;
+    String outFile = "";
+    String combinedOutFile = "";
+    String inFile = "";
 
-    public void setPktInteval(double interval) {
-      pktInteval = interval;
-    }
+    BufferedReader replica;
+    BufferedWriter out;
+    
+    for (double interval : intervals) {
+      for (int lambda :lambdas) {
 
-    public void setDelayInterval(double interval) {
-      delayInterval = interval;
-    }
 
-    public String getCSV(boolean withSSD) {
+        // TODO: add replica here
+        List<Map<Long, Double>> packetOccurencesList = new ArrayList<Map<Long, Double>>();
 
-      double avgPacketDelay = 0.0;
-      double avgPacketCount = 0.0;
+        for (int i = 0; i < NUMBER_OF_REPLICAS; i++) {
+          outFile = outFolder + "sim-" + lambda + "-" + mu + "-" + interval + File.separator + "replica-result-" + i + ".csv";
 
-      if (delayCount > 0) {
-        avgPacketDelay = packetDelay / delayCount;
+          inFile = inFolder + "sim-" + lambda + "-" + mu + "-" + interval + File.separator + "replica-" + i + FILE_EXT;
+          replica = new BufferedReader(new FileReader(new File(inFile)));
+
+          replica.readLine(); // skip headers
+
+          String line;
+
+          // Map of <# of packets, occurence>
+          Map<Long, Double> packetOccurences = new HashMap<Long, Double>();
+          while ((line = replica.readLine()) != null) {
+
+
+            String[] data = line.split(",");
+
+            Long numOfPackets = Long.parseLong(data[1]);
+            if (packetOccurences.containsKey(numOfPackets)) {
+              packetOccurences.put(numOfPackets, packetOccurences.get(numOfPackets) + 1.0);
+            } else {
+              packetOccurences.put(numOfPackets, 1.0);
+            }
+          }
+
+          // 1 Replica done
+          packetOccurencesList.add(packetOccurences);
+        }
+
+        // Create Bins
+        Map<Long, Double> replicasPacketOccurences = new HashMap<Long, Double>();
+        for (long j = 0; j < 20; j++) {
+          
+          double count = 0;
+          for (Map<Long, Double> po : packetOccurencesList) {
+            if (po.containsKey(j)) {
+              count += po.get(j);            
+            }
+          }
+          replicasPacketOccurences.put(j, count);
+        }
+
+        // Calculate Confidence Intervals
+
+        Map<Long, Double> confidenceIntervals = new HashMap<Long, Double>();
+        for (long j = 0; j < 20; j++) {
+
+          double meanOccurrence = replicasPacketOccurences.get(j) / NUMBER_OF_REPLICAS;
+
+          double sum = 0.0;
+          for (Map<Long, Double> po : packetOccurencesList) {
+            if (po.containsKey(j)) {
+              sum += Math.pow(po.get(j) - meanOccurrence,2);
+            }
+          }
+
+          double s = Math.sqrt(sum / (NUMBER_OF_REPLICAS - 1));
+
+          double ci = T_STATISTIC_19_0975 * s / Math.sqrt(NUMBER_OF_REPLICAS - 1);
+          confidenceIntervals.put(j, ci);
+        }
+
+        System.out.println(outFile);
+
+        for (Map.Entry<Long, Double> entry : replicasPacketOccurences.entrySet()) {
+          double avgOccurences = entry.getValue() / NUMBER_OF_REPLICAS;
+          System.out.println(entry.getKey() + "," 
+            + avgOccurences + ","
+            + confidenceIntervals.get(entry.getKey()));
+        }
+
+        System.out.println("--------------------------------------------------");
       }
-
-      if (packetCount > 0) {
-        avgPacketCount = packetsInSystem / packetCount;
-      }
-
-      if (withSSD) {
-        return avgPacketDelay + "," + delayInterval + ","
-          + avgPacketCount + "," + pktInteval;
-      } else {
-        return avgPacketDelay + "," + packetsInSystem;
-      }
     }
+
   }
 }

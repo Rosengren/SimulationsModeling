@@ -194,7 +194,7 @@ public class SingleServerQueue {
 
     delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
 
-    collectStatistics();
+    // collectStatistics();
 
     previousArrivalTime = arrivalTime;
     previousServiceTime = serviceTime;

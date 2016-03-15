@@ -15,7 +15,7 @@ public class GenerateReplicas {
   private static final double xi = 0.7;
 
   public static void main(String[] args) throws IOException {
-    // Steps
+
     // 1 - Generate Random Variable sets
     // generateRandomVariables();
     
@@ -23,12 +23,12 @@ public class GenerateReplicas {
     // generateTraffic();
 
     // 3 - Run the Simulations
-    // runSimulations();
-
-
+    runSimulations();
   }
 
   public static void generateRandomVariables() throws IOException {
+
+    System.out.println("Generating Random Variables");
     for (int i = 0; i < NUMBER_OF_REPLICAS; i++) {
       RandomNumberGenerator.generate(0, 1, 
         NUMBER_OF_PACKETS, 
@@ -42,10 +42,14 @@ public class GenerateReplicas {
 
   public static void generateTraffic() throws IOException {
 
+    System.out.println("Generating Traffic");
+
     for (int i = 0; i < NUMBER_OF_REPLICAS; i++) {
       for (double interval : intervals) {
 
-        TrafficGenerator.generateTimes(interval, -interval, xi,
+        // Always Use 0.5 intervals for Service Times
+        // TrafficGenerator.generateTimes(interval, -interval, xi,
+        TrafficGenerator.generateTimes(0.5, -0.5, xi,
           mu, OUTPUT_FOLDER + File.separator + "randomST" + i,
           OUTPUT_FOLDER + File.separator + OUTPUT_TIMES_FOLDER + File.separator + "replica-" + i + "-st-" + mu + "-" + interval + ".csv");
 
@@ -60,6 +64,8 @@ public class GenerateReplicas {
   }
 
   public static void runSimulations() throws IOException {
+
+    System.out.println("Running Simulations");
 
     // replica-0-ia-1-0.01
     // replica- (0-19) -ai- (1,3,5,7,9) - (0.01,0.1,0.5) .csv

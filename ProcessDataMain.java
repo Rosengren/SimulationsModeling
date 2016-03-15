@@ -7,6 +7,7 @@ public class ProcessDataMain {
     
     ProcessData pd = new ProcessData();
 
-    pd.run();
+    // pd.run();
+    pd.runOccupencies(); // Part 2.2
   }
 }
