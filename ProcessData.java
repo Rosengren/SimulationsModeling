@@ -89,20 +89,6 @@ public class ProcessData {
 
           replica.close();
 
-          // OUTPUT HERE
-          // out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outFile), "utf-8"));
-
-          // out.write("Utilization,Average Packet Delay,Packets in System");
-          // out.newLine();
-
-          // for (int utilKey : utilMap.keySet()) {
-          //   out.write(utilKey + "," + utilMap.get(utilKey).getCSV(false));
-          //   out.newLine();
-          // }
-
-          // out.close();
-          // System.out.println("Finished with: " + outFile);
-
           totalReplicaUtilization += avgUtilization;
           totalReplicaPacketDelay += avgPacketDelay;
           totalReplicaPacketsInSystem += avgPacketsInSystem;
@@ -156,8 +142,6 @@ public class ProcessData {
     for (double interval : intervals) {
       for (int lambda :lambdas) {
 
-
-        // TODO: add replica here
         List<Map<Long, Double>> packetOccurencesList = new ArrayList<Map<Long, Double>>();
 
         for (int i = 0; i < NUMBER_OF_REPLICAS; i++) {

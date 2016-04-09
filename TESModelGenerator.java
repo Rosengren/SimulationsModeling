@@ -1,5 +1,11 @@
 import java.util.*;
 
+/**
+ * Implemenation of the TES model variable generator
+ *
+ * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
+ * @version 03/11/16
+ */
 public class TESModelGenerator {
 
   private static final double DEFAULT_A = 1;

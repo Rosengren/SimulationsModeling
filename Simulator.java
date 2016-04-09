@@ -24,12 +24,12 @@ public class Simulator {
         "(1) Inter Arrival Times Input File\n" +
         "(2) Service Times Input File\n" +
         "(3) Statistics Output File\n" +
-        "(4) Output Format");
+        "(4) Output Format [default = csv]");
       return;
     }
 
     String format = "csv";
-    if (args.length == 4) {
+    if (args.length > 3) {
       format = args[3];
     }
 

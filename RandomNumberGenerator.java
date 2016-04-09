@@ -2,6 +2,14 @@ import java.text.DecimalFormat;
 import java.util.*;
 import java.io.*;
 
+/**
+ * Random Number Generator
+ * generates an output file containing a specified number
+ * of random variables with a given interval.
+ *
+ * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
+ * @version 03/11/16
+ */
 public class RandomNumberGenerator {
 
   private static Random random;

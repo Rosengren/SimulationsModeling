@@ -270,7 +270,7 @@ public class SingleServerQueue {
    * getStatistics
    *
    * return list of gathered statistics
-   */  
+   */
   public List<Statistic> getStatistics() {
     return statistics;
   }
@@ -290,7 +290,7 @@ public class SingleServerQueue {
     public String type;
 
     /** Time to run event **/
-    public double time; 
+    public double time;
 
     public Event(String type, double time) {
       this.type = type;
@@ -354,7 +354,7 @@ public class SingleServerQueue {
 
       if (format.equals("csv") || format.equals("csv-no-header")) {
         return df.format(clock) +
-               ",[" + fel + "]" + 
+               ",[" + fel + "]" +
                "," + numberOfDepartures +
                "," + queueSize +
                "," + serverInUse +
@@ -366,8 +366,8 @@ public class SingleServerQueue {
                "," + numberOfPackets +
                "," + df.format(serverUtilization);
       } else {
-        return "Clock: " + df.format(clock) + 
-               ", Future Event List: [" + fel + "]" + 
+        return "Clock: " + df.format(clock) +
+               ", Future Event List: [" + fel + "]" +
                ", Number of Departures: " + numberOfDepartures +
                ", Queue Size: " + queueSize +
                ", Server in use: " + serverInUse +
