@@ -3,11 +3,10 @@ import java.util.*;
 import java.io.*;
 
 /**
- * Implementation of a Single Server Simulation
- * with a First-In-First-Out Queue
+ * Implementation of a Network Feedback Queue
  *
  * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
- * @version 11/03/16
+ * @version 09/04/16
  */
 public class NetworkFeedbackQueues {
 
@@ -41,7 +40,8 @@ public class NetworkFeedbackQueues {
   private Queue<Double> queue_two;
 
   /** total number of departures **/
-  private long numberOfDepartures;
+  private long numberOfDeparturesFromServerOne;
+  private long numberOfDeparturesFromServerTwo;
 
   /** total number of arrivals **/
   private long numberOfArrivals;
@@ -87,7 +87,8 @@ public class NetworkFeedbackQueues {
     queue_one_is_busy = false;
     queue_two_is_busy = false;
     numberOfArrivals = 0;
-    numberOfDepartures = 0;
+    numberOfDeparturesFromServerOne = 0;
+    numberOfDeparturesFromServerTwo = 0;
     currentStartTimeOfServerOne = 0.0;
     currentStartTimeOfServerTwo = 0.0;
     totalServerOneFreeTime = 0.0;
@@ -141,11 +142,10 @@ public class NetworkFeedbackQueues {
   /**
    * initialConditions
    *
-   * start the clock at the first arrival time
-   * and setup departure of first event
+   * start the clock at the first arrival time and
+   * setup departure of first event for queue one
    */
   private void initialConditions() throws IOException {
-    // FIXME
 
     // Set clock to first arrival time
     clock = eventGenerator.nextArrivalTime();
@@ -156,6 +156,7 @@ public class NetworkFeedbackQueues {
     // Set LS(t) = 1
     queue_one_is_busy = true;
     totalServerOneFreeTime += clock;
+    totalServerTwoFreeTime += clock;
 
     // Generate Service Time s*;
     // Schedule new Departure event
@@ -167,7 +168,7 @@ public class NetworkFeedbackQueues {
     // Schedule next arrival event
     // at time t + a*;
     double nextArrivalTime = eventGenerator.nextArrivalTime();
-    futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    futureEventList.add(new Event(ANY_QUEUE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
 
@@ -195,7 +196,13 @@ public class NetworkFeedbackQueues {
     // Which queue is the event for?
     if (event.queue == ANY_QUEUE) {
         // Select the queue with the fewest customers
-        if (queue_one.size() <= queue_two.size()) {
+
+        // Check if either queue is empty first
+        if (!queue_one_is_busy) {
+          event.queue = QUEUE_ONE;
+        } else if (!queue_two_is_busy) {
+          event.queue = QUEUE_TWO;
+        } else if (queue_one.size() <= queue_two.size()) {
           event.queue = QUEUE_ONE;
         } else {
           event.queue = QUEUE_TWO;
@@ -256,7 +263,7 @@ public class NetworkFeedbackQueues {
 
     delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
 
-    // collectStatistics();
+    collectStatistics(); // FIXME: be sure to disable this when running actual simulation
 
     previousArrivalTime = arrivalTime;
     previousServiceTime = serviceTime;
@@ -286,9 +293,9 @@ public class NetworkFeedbackQueues {
         // event at time t + s*;
         futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
 
-      } else { // LQ(t) <= 0
+      } else { // LQ_1(t) <= 0
 
-        // Set LS(t) = 0
+        // Set LS_1(t) = 0
         queue_one_is_busy = false;
 
         currentStartTimeOfServerOne = clock;
@@ -296,12 +303,14 @@ public class NetworkFeedbackQueues {
 
       // Generate p*
       // Is p >= p*?
-      if (p >= getProbability()) {
+      if (p > getProbability()) {
 
         // Scehdule next arrival
-        // event at time to for queue two
-        futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock, event.serviceTime)); // FIXME: make sure that setting it to clock will work and not be skipped
+        // event at t time to for queue two
+        futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock, event.serviceTime));
       }
+
+      numberOfDeparturesFromServerOne += 1;
 
     } else { // QUEUE_TWO
 
@@ -318,23 +327,24 @@ public class NetworkFeedbackQueues {
 
       } else { // LQ_2(t) <= 0
 
-        // Set LS(t) = 0
+        // Set LS_2(t) = 0
         queue_two_is_busy = false;
 
         currentStartTimeOfServerTwo = clock;
-
-        // Generate q*
-        // Is q >= q*?
-        if (q >= getProbability()) {
-
-          // Scehdule next arrival
-          // event at time to for queue one
-          futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock, event.serviceTime)); // FIXME: make sure that setting it to clock will work and not be skipped
-        }
       }
+
+      // Generate q*
+      // Is q >= q*?
+      if (q >= getProbability()) {
+
+        // Scehdule next arrival
+        // event at time to for queue one
+        futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock, event.serviceTime));
+      }
+
+      numberOfDeparturesFromServerTwo += 1;
     }
 
-    numberOfDepartures += 1;
     collectStatistics();
 
     // Return control to time-advance
@@ -350,25 +360,39 @@ public class NetworkFeedbackQueues {
    */
   private void collectStatistics() {
 
-    double serverUtilization = 0.0;
+    double serverOneUtilization = 0.0;
+    double serverTwoUtilization = 0.0;
 
     if (clock != 0) {
       // Server Utilization = Time server is busy / total running time
-      serverUtilization = (clock - totalServerOneFreeTime) / clock;
+      serverOneUtilization = (clock - totalServerOneFreeTime) / clock;
+      serverTwoUtilization = (clock - totalServerTwoFreeTime) / clock;
     }
 
-    // FIXME: right now this only gets stats for queue one
-    Statistic statistic = new Statistic(
+    Statistic statisticTwo = new Statistic(
+      QUEUE_ONE,
       this.clock,
       new ArrayList(this.futureEventList), // clone
-      this.numberOfDepartures,
+      this.numberOfDeparturesFromServerOne,
       this.queue_one.size(),
-      serverUtilization,
+      serverOneUtilization,
       queue_one_is_busy ? 1: 0,
       delay,
       outputFormat);
 
-    statistics.add(statistic);
+    Statistic statisticOne = new Statistic(
+      QUEUE_TWO,
+      this.clock,
+      new ArrayList(this.futureEventList), // clone
+      this.numberOfDeparturesFromServerTwo,
+      this.queue_two.size(),
+      serverTwoUtilization,
+      queue_two_is_busy ? 1: 0,
+      delay,
+      outputFormat);
+
+    statistics.add(statisticTwo);
+    statistics.add(statisticOne);
   }
 
   /**
@@ -419,7 +443,7 @@ public class NetworkFeedbackQueues {
 
     @Override
     public String toString() {
-      return "(" + type + "; " + df.format(time) + ")";
+      return "(" + type + "; queue " + queue + "; " + df.format(time) + ")";
     }
   }
 
@@ -440,6 +464,7 @@ public class NetworkFeedbackQueues {
 
     private String format;
 
+    public int queue;
     public double clock;
     public List<Event> futureEventList;
     public long numberOfDepartures;
@@ -448,9 +473,10 @@ public class NetworkFeedbackQueues {
     public double delay;
     public int serverInUse;
 
-    public Statistic(double clock, List<Event> futureEventList,
+    public Statistic(int queue, double clock, List<Event> futureEventList,
       long numberOfDepartures, long queueSize, double serverUtilization, int serverInUse,
       double delay, String format) {
+      this.queue = queue;
       this.clock = clock;
       this.futureEventList = futureEventList;
       this.numberOfDepartures = numberOfDepartures;
@@ -471,7 +497,8 @@ public class NetworkFeedbackQueues {
       }
 
       if (format.equals("csv") || format.equals("csv-no-header")) {
-        return df.format(clock) +
+        return queue +
+               "," + df.format(clock) +
                ",[" + fel + "]" +
                "," + numberOfDepartures +
                "," + queueSize +
@@ -484,7 +511,8 @@ public class NetworkFeedbackQueues {
                "," + numberOfPackets +
                "," + df.format(serverUtilization);
       } else {
-        return "Clock: " + df.format(clock) +
+        return "Queue: " + queue +
+               "Clock: " + df.format(clock) +
                ", Future Event List: [" + fel + "]" +
                ", Number of Departures: " + numberOfDepartures +
                ", Queue Size: " + queueSize +
