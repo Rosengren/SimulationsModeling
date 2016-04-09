@@ -19,7 +19,7 @@ public class Simulator {
    */
   public static void main(String[] args) throws IOException {
 
-    if (args.length < 4) {
+    if (args.length < 3) {
       System.out.println("Missing parameters:\n" + 
         "(1) Inter Arrival Times Input File\n" +
         "(2) Service Times Input File\n" +
@@ -28,7 +28,12 @@ public class Simulator {
       return;
     }
 
-    run(args[0], args[1], args[2], args[3]);
+    String format = "csv";
+    if (args.length == 4) {
+      format = args[3];
+    }
+
+    run(args[0], args[1], args[2], format);
   }
 
   /**
