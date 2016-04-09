@@ -18,6 +18,12 @@ public class NetworkFeedbackQueues {
   private static final int QUEUE_ONE = 1;
   private static final int QUEUE_TWO = 2;
 
+  private Random random;
+
+  /** probabilities of staying in the system **/
+  private double p;
+  private double q;
+
 
   /** generates new arrival times and service times **/
   private EventGenerator eventGenerator;
@@ -67,7 +73,7 @@ public class NetworkFeedbackQueues {
    * @param eventGenerator for generating arrival times
    *        and service times
    */
-  public NetworkFeedbackQueues(EventGenerator eventGenerator, String outputFormat) {
+  public NetworkFeedbackQueues(EventGenerator eventGenerator, double p, double q, String outputFormat) {
     this.eventGenerator = eventGenerator;
 
     futureEventList = new TreeSet<Event>(new EventComparator());
@@ -90,6 +96,10 @@ public class NetworkFeedbackQueues {
     delay = 0.0;
     previousArrivalTime = 0.0;
     previousServiceTime = 0.0;
+
+    random = new Random();
+    this.p = p;
+    this.q = q;
   }
 
   /**
@@ -262,23 +272,66 @@ public class NetworkFeedbackQueues {
    */
   private void departureEvent(Event event) throws IOException {
 
-    // Is LQ(t) > 0 ?
-    if (queue_one.size() > 0) {
+    // Which queue is the event for?
+    if (event.queue == QUEUE_ONE) {
 
-      // Reduce LQ(t) by 1
-      double serviceTime = queue_one.remove();
+      // Is LQ(t) > 0?
+      if (queue_one.size() > 0) {
 
-      // Generate service time s*;
-      // Schedule new departure
-      // event at time t + s*;
-      futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
+        // Reduce LQ_1(t) by 1
+        double serviceTime = queue_one.remove();
 
-    } else {
+        // Generate service time s*;
+        // Schedule new departure
+        // event at time t + s*;
+        futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
 
-      // Set LS(t) = 0
-      queue_one_is_busy = false;
+      } else { // LQ(t) <= 0
 
-      currentStartTimeOfServerOne = clock;
+        // Set LS(t) = 0
+        queue_one_is_busy = false;
+
+        currentStartTimeOfServerOne = clock;
+      }
+
+      // Generate p*
+      // Is p >= p*?
+      if (p >= getProbability()) {
+
+        // Scehdule next arrival
+        // event at time to for queue two
+        futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock, event.serviceTime)); // FIXME: make sure that setting it to clock will work and not be skipped
+      }
+
+    } else { // QUEUE_TWO
+
+      // Is LQ_2(t) > 0?
+      if (queue_two.size() > 0) {
+
+        // Reduce LQ_2(t) by 1
+        double serviceTime = queue_two.remove();
+
+        // Generate service time s*;
+        // Schedule new departure
+        // event at time t + s*;
+        futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
+
+      } else { // LQ_2(t) <= 0
+
+        // Set LS(t) = 0
+        queue_two_is_busy = false;
+
+        currentStartTimeOfServerTwo = clock;
+
+        // Generate q*
+        // Is q >= q*?
+        if (q >= getProbability()) {
+
+          // Scehdule next arrival
+          // event at time to for queue one
+          futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock, event.serviceTime)); // FIXME: make sure that setting it to clock will work and not be skipped
+        }
+      }
     }
 
     numberOfDepartures += 1;
@@ -301,17 +354,17 @@ public class NetworkFeedbackQueues {
 
     if (clock != 0) {
       // Server Utilization = Time server is busy / total running time
-      serverUtilization = (clock - totalServerOneeFreeTime) / clock;
+      serverUtilization = (clock - totalServerOneFreeTime) / clock;
     }
 
-
+    // FIXME: right now this only gets stats for queue one
     Statistic statistic = new Statistic(
       this.clock,
       new ArrayList(this.futureEventList), // clone
       this.numberOfDepartures,
       this.queue_one.size(),
       serverUtilization,
-      queue_one_is_busy ? 1: 0, // FIXME
+      queue_one_is_busy ? 1: 0,
       delay,
       outputFormat);
 
@@ -325,6 +378,11 @@ public class NetworkFeedbackQueues {
    */
   public List<Statistic> getStatistics() {
     return statistics;
+  }
+
+
+  private double getProbability() {
+    return random.nextDouble();
   }
 
   /**
