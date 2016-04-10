@@ -42,6 +42,7 @@ public class NetworkFeedbackQueues {
   /** total number of departures **/
   private long numberOfDeparturesFromServerOne;
   private long numberOfDeparturesFromServerTwo;
+  private long totalNumberOfDepartures;
 
   /** total number of arrivals **/
   private long numberOfArrivals;
@@ -68,6 +69,8 @@ public class NetworkFeedbackQueues {
   private double previousArrivalTime;
 
   private long numOfDataPoints;
+
+  private Map<Integer, Long> frequencies;
 
   /**
    * SingleServerQueue
@@ -101,9 +104,19 @@ public class NetworkFeedbackQueues {
     previousArrivalTime = 0.0;
     previousServiceTime = 0.0;
 
+    totalNumberOfDepartures = 0;
+
     random = new Random();
     this.p = p;
     this.q = q;
+
+    frequencies = new HashMap<>();
+    frequencies.put(5, new Long(0));
+    frequencies.put(10, new Long(0));
+    frequencies.put(15, new Long(0));
+    frequencies.put(20, new Long(0));
+    frequencies.put(25, new Long(0));
+    frequencies.put(30, new Long(0));
   }
 
   /**
@@ -118,15 +131,13 @@ public class NetworkFeedbackQueues {
     initialConditions(); // start simulation
 
     Event nextEvent;
-    long counter = 0;
     while (!futureEventList.isEmpty()) {
       nextEvent = futureEventList.pollFirst(); // first element
 
-      if (counter >= numOfDataPoints) {
+      if (totalNumberOfDepartures >= numOfDataPoints) {
         System.out.println("Finished simulation.");
         break;
       } else {
-
         // Advance clock to next event time
         clock = nextEvent.time;
       }
@@ -138,7 +149,6 @@ public class NetworkFeedbackQueues {
         arrivalEvent(nextEvent);
 
       }
-      counter++;
     }
   }
 
@@ -166,6 +176,9 @@ public class NetworkFeedbackQueues {
     // at time t + s*;
     double serviceTime = eventGenerator.nextServiceTime();
     futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
+
+    serviceTime = eventGenerator.nextServiceTime();
+    futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
 
     // Generate interarrival time a*;
     // Schedule next arrival event
@@ -219,6 +232,13 @@ public class NetworkFeedbackQueues {
         futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
+      // Generate interarrival time a*;
+      // Schedule next arrival event
+      // at time t + a*;
+
+      double nextArrivalTime = eventGenerator.nextArrivalTime();
+      futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+
     } else { // QUEUE_TWO
 
       // Is LS_2(t) = 1?
@@ -239,16 +259,14 @@ public class NetworkFeedbackQueues {
         serviceTime = eventGenerator.nextServiceTime();
         futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
+
+      // Generate interarrival time a*;
+      // Schedule next arrival event
+      // at time t + a*;
+
+      double nextArrivalTime = eventGenerator.nextArrivalTime();
+      futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
     }
-
-
-    // Generate interarrival time a*;
-    // Schedule next arrival event
-    // at time t + a*;
-    double nextArrivalTime = eventGenerator.nextArrivalTime();
-    futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
-    nextArrivalTime = eventGenerator.nextArrivalTime();
-    futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
 
@@ -256,8 +274,8 @@ public class NetworkFeedbackQueues {
 
     // collectStatistics(); // FIXME: be sure to disable this when running actual simulation
 
-    previousArrivalTime = arrivalTime;
-    previousServiceTime = serviceTime;
+    // previousArrivalTime = arrivalTime;
+    // previousServiceTime = serviceTime;
 
     // Return control to time-advance
     // routine to continue simulation
@@ -295,9 +313,8 @@ public class NetworkFeedbackQueues {
       // Generate p*
       // Is p >= p*?
       if (p > getProbability()) {
-
         // Scehdule next arrival
-        // event at t time to for queue two
+        // event at time t for queue two
         futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock, event.serviceTime));
       }
 
@@ -326,16 +343,16 @@ public class NetworkFeedbackQueues {
 
       // Generate q*
       // Is q >= q*?
-      if (q >= getProbability()) {
-
+      if (q > getProbability()) {
         // Scehdule next arrival
-        // event at time to for queue one
+        // event at time t for queue one
         futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock, event.serviceTime));
       }
 
       numberOfDeparturesFromServerTwo += 1;
     }
 
+    totalNumberOfDepartures += 1;
     collectStatistics();
 
     // Return control to time-advance
@@ -351,7 +368,22 @@ public class NetworkFeedbackQueues {
    */
   private void collectStatistics() {
 
-    Statistic statisticTwo = new Statistic(
+    long size = queue_one.size();
+    if (size <= 5) {
+      frequencies.put(5, frequencies.get(5) + 1);
+    } else if (size <= 10) {
+      frequencies.put(10, frequencies.get(10) + 1);
+    } else if (size <= 15) {
+      frequencies.put(15, frequencies.get(15) + 1);
+    } else if (size <= 20) {
+      frequencies.put(20, frequencies.get(20) + 1);
+    } else if (size <= 25) {
+      frequencies.put(25, frequencies.get(25) + 1);
+    } else if (size > 25) {
+      frequencies.put(30, frequencies.get(30) + 1);
+    }
+
+    Statistic statisticOne = new Statistic(
       QUEUE_ONE,
       this.clock,
       new ArrayList(this.futureEventList), // clone
@@ -361,7 +393,7 @@ public class NetworkFeedbackQueues {
       delay,
       outputFormat);
 
-    Statistic statisticOne = new Statistic(
+    Statistic statisticTwo = new Statistic(
       QUEUE_TWO,
       this.clock,
       new ArrayList(this.futureEventList), // clone
@@ -506,5 +538,10 @@ public class NetworkFeedbackQueues {
     public int compare(Event one, Event two) {
       return Double.compare(one.time, two.time);
     }
+  }
+
+
+  public void printFrequencies() {
+    System.out.println(frequencies.toString());
   }
 }

@@ -83,6 +83,8 @@ public class MainNetworkQueue {
       out.newLine();
     }
 
+    server.printFrequencies();
+
     // Output results to a file
     for (NetworkFeedbackQueues.Statistic stat : server.getStatistics()) {
       out.write(stat.toString());
