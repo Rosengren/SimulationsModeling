@@ -14,6 +14,10 @@ public class EventGenerator {
   private Random randomST;
   private double lambda;
   private double mu;
+  private double c;
+  private double k;
+  private double alpha;
+  private double beta;
 
   /**
    *
