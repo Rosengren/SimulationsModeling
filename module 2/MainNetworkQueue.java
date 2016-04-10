@@ -63,7 +63,7 @@ public class MainNetworkQueue {
     BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
 
     if (outputFormat.equals("csv")) {
-      out.write("Queue,Time,Future Event List,Number of Departures,Queue Size,Server Occupied,Delay,Server Utilization");
+      out.write("Queue,Time,Future Event List,Number of Departures,Queue Size,Server Occupied,Delay");
       out.newLine();
     } else if (outputFormat.equals("delay")) {
       out.write("Delay,Number of Packets,Utilization");

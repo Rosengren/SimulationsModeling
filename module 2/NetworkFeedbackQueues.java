@@ -168,11 +168,12 @@ public class NetworkFeedbackQueues {
     // Schedule next arrival event
     // at time t + a*;
     double nextArrivalTime = eventGenerator.nextArrivalTime();
-    futureEventList.add(new Event(ANY_QUEUE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
 
-    delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
+    // delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
 
     collectStatistics();
 
@@ -192,22 +193,6 @@ public class NetworkFeedbackQueues {
 
     double serviceTime = 0.0;
     double arrivalTime = clock;
-
-    // Which queue is the event for?
-    if (event.queue == ANY_QUEUE) {
-        // Select the queue with the fewest customers
-
-        // Check if either queue is empty first
-        if (!queue_one_is_busy) {
-          event.queue = QUEUE_ONE;
-        } else if (!queue_two_is_busy) {
-          event.queue = QUEUE_TWO;
-        } else if (queue_one.size() <= queue_two.size()) {
-          event.queue = QUEUE_ONE;
-        } else {
-          event.queue = QUEUE_TWO;
-        }
-    }
 
     if (event.queue == QUEUE_ONE) {
 
@@ -257,13 +242,14 @@ public class NetworkFeedbackQueues {
     // Schedule next arrival event
     // at time t + a*;
     double nextArrivalTime = eventGenerator.nextArrivalTime();
-    futureEventList.add(new Event(ANY_QUEUE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
 
-    delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
+    // delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
 
-    collectStatistics(); // FIXME: be sure to disable this when running actual simulation
+    // collectStatistics(); // FIXME: be sure to disable this when running actual simulation
 
     previousArrivalTime = arrivalTime;
     previousServiceTime = serviceTime;
@@ -360,22 +346,12 @@ public class NetworkFeedbackQueues {
    */
   private void collectStatistics() {
 
-    double serverOneUtilization = 0.0;
-    double serverTwoUtilization = 0.0;
-
-    if (clock != 0) {
-      // Server Utilization = Time server is busy / total running time
-      serverOneUtilization = (clock - totalServerOneFreeTime) / clock;
-      serverTwoUtilization = (clock - totalServerTwoFreeTime) / clock;
-    }
-
     Statistic statisticTwo = new Statistic(
       QUEUE_ONE,
       this.clock,
       new ArrayList(this.futureEventList), // clone
       this.numberOfDeparturesFromServerOne,
       this.queue_one.size(),
-      serverOneUtilization,
       queue_one_is_busy ? 1: 0,
       delay,
       outputFormat);
@@ -386,7 +362,6 @@ public class NetworkFeedbackQueues {
       new ArrayList(this.futureEventList), // clone
       this.numberOfDeparturesFromServerTwo,
       this.queue_two.size(),
-      serverTwoUtilization,
       queue_two_is_busy ? 1: 0,
       delay,
       outputFormat);
@@ -456,7 +431,6 @@ public class NetworkFeedbackQueues {
    * @param future event list
    * @param number of departures
    * @param size of customer queue
-   * @param server utilization
    */
   public static class Statistic {
 
@@ -469,19 +443,17 @@ public class NetworkFeedbackQueues {
     public List<Event> futureEventList;
     public long numberOfDepartures;
     public long queueSize;
-    public double serverUtilization;
     public double delay;
     public int serverInUse;
 
     public Statistic(int queue, double clock, List<Event> futureEventList,
-      long numberOfDepartures, long queueSize, double serverUtilization, int serverInUse,
+      long numberOfDepartures, long queueSize, int serverInUse,
       double delay, String format) {
       this.queue = queue;
       this.clock = clock;
       this.futureEventList = futureEventList;
       this.numberOfDepartures = numberOfDepartures;
       this.queueSize = queueSize;
-      this.serverUtilization = serverUtilization;
       this.serverInUse = serverInUse;
       this.delay = delay;
       this.format = format;
@@ -503,13 +475,11 @@ public class NetworkFeedbackQueues {
                "," + numberOfDepartures +
                "," + queueSize +
                "," + serverInUse +
-               "," + delay +
-               "," + df.format(serverUtilization);
+               "," + delay;
       } else if (format.equals("delay")) {
         long numberOfPackets = queueSize + serverInUse;
         return df.format(delay) +
-               "," + numberOfPackets +
-               "," + df.format(serverUtilization);
+               "," + numberOfPackets;
       } else {
         return "Queue: " + queue +
                "Clock: " + df.format(clock) +
@@ -517,8 +487,7 @@ public class NetworkFeedbackQueues {
                ", Number of Departures: " + numberOfDepartures +
                ", Queue Size: " + queueSize +
                ", Server in use: " + serverInUse +
-               ", Delay: " + delay +
-               ", Server Utilization: " + df.format(serverUtilization);
+               ", Delay: " + delay;
       }
     }
   }
