@@ -21,31 +21,45 @@ public class MainNetworkQueue {
 
     if (args.length < 5) {
       System.out.println("Missing parameters:\n" +
-        "(1) Inter Arrival Times Input File\n" +
-        "(2) Service Times Input File\n" +
+        "(1) Lambda\n" +
+        "(2) Mu\n" +
         "(3) Probability p\n" +
         "(4) Probability q\n" +
-        "(5) Statistics Output File\n" +
-        "(6) Output Format [default = csv]");
+        "(5) Number of Data Points\n" +
+        "(6) Statistics Output File\n" +
+        "(7) Output Format [default = csv]");
       return;
     }
 
     String format = "csv";
-    if (args.length > 5) {
-      format = args[3];
+    if (args.length > 6) {
+      format = args[6];
     }
 
     double p = 0.0;
     double q = 0.0;
+    double lambda = 0.0;
+    double mu = 0.0;
+    long dataPoints = 0;
     try {
+      lambda = Double.parseDouble(args[0]);
+      mu = Double.parseDouble(args[1]);
       p = Double.parseDouble(args[2]);
       q = Double.parseDouble(args[3]);
+      dataPoints = Long.parseLong(args[4]);
     } catch (Exception e) {
-      System.out.println("Error: Could not parse probability p and/or q");
+      System.out.println("Error: Could not parse doubles");
       return;
     }
 
-    run(args[0], args[1], p, q, args[4], format);
+    System.out.println("Running simulation with:\n" +
+        "\tLambda: " + lambda + "\n" +
+        "\tMu: " + mu + "\n" +
+        "\tp: " + p + "\n" +
+        "\tq: " + q + "\n" +
+        "\tData Points: " + dataPoints);
+
+    run(lambda, mu, p, q, dataPoints, args[5], format);
   }
 
   /**
@@ -53,11 +67,10 @@ public class MainNetworkQueue {
    *
    * Initialize and run Single Server Queue
    */
-  public static void run(String interArrivalTimesFile,
-    String serviceTimesFile, double p, double q, String outputFile, String outputFormat) throws IOException {
+  public static void run(double lambda, double mu, double p, double q, long dataPoints, String outputFile, String outputFormat) throws IOException {
 
-    EventGenerator generator = new EventGenerator(interArrivalTimesFile, serviceTimesFile);
-    NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator, p, q, outputFormat);
+    EventGenerator generator = new EventGenerator(lambda, mu);
+    NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator, p, q, dataPoints, outputFormat);
     server.run();
 
     BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));

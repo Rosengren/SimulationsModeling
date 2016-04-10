@@ -67,14 +67,17 @@ public class NetworkFeedbackQueues {
 
   private double previousArrivalTime;
 
+  private long numOfDataPoints;
+
   /**
    * SingleServerQueue
    *
    * @param eventGenerator for generating arrival times
    *        and service times
    */
-  public NetworkFeedbackQueues(EventGenerator eventGenerator, double p, double q, String outputFormat) {
+  public NetworkFeedbackQueues(EventGenerator eventGenerator, double p, double q, long numOfDataPoints, String outputFormat) {
     this.eventGenerator = eventGenerator;
+    this.numOfDataPoints = numOfDataPoints;
 
     futureEventList = new TreeSet<Event>(new EventComparator());
     statistics = new ArrayList<Statistic>();
@@ -115,11 +118,12 @@ public class NetworkFeedbackQueues {
     initialConditions(); // start simulation
 
     Event nextEvent;
+    long counter = 0;
     while (!futureEventList.isEmpty()) {
       nextEvent = futureEventList.pollFirst(); // first element
 
-      if (nextEvent.time < 0) {
-        System.out.println("Reached end of events list");
+      if (counter >= numOfDataPoints) {
+        System.out.println("Finished simulation.");
         break;
       } else {
 
@@ -134,9 +138,8 @@ public class NetworkFeedbackQueues {
         arrivalEvent(nextEvent);
 
       }
+      counter++;
     }
-
-    closeGenerator();
   }
 
   /**
@@ -169,6 +172,7 @@ public class NetworkFeedbackQueues {
     // at time t + a*;
     double nextArrivalTime = eventGenerator.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    nextArrivalTime = eventGenerator.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
@@ -243,6 +247,7 @@ public class NetworkFeedbackQueues {
     // at time t + a*;
     double nextArrivalTime = eventGenerator.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+    nextArrivalTime = eventGenerator.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
@@ -501,14 +506,5 @@ public class NetworkFeedbackQueues {
     public int compare(Event one, Event two) {
       return Double.compare(one.time, two.time);
     }
-  }
-
-  /**
-   * closeGenerator
-   *
-   * close file input streams
-   */
-  public void closeGenerator() {
-    eventGenerator.close();
   }
 }

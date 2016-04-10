@@ -2,150 +2,89 @@ import java.util.*;
 import java.io.*;
 
 /**
- * Implementation of a default event generator. The generator
- * reads two input files; inter arrival times and
- * service times.
+ * Implementation of a random event generator. The generator
+ * generates random variables.
  *
  * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
  * @version 11/03/16
  */
 public class EventGenerator {
 
-  private static final int BUFFER_SIZE = 1000;
-
-  private BufferedReader interArrivalTimes = null;
-  private BufferedReader serviceTimes = null;
+  private Random randomAT;
+  private Random randomST;
+  private double lambda;
+  private double mu;
+  private double c;
+  private double k;
+  private double alpha;
+  private double beta;
 
   /**
    *
-   * @param inter-arrival times input file
-   * @param service times input file
+   * @param lambda
+   * @param mu
    */
-  public EventGenerator(String interArrivalTimesFile, String serviceTimesFile) throws IOException {
-    interArrivalTimes = new BufferedReader(new FileReader(new File(interArrivalTimesFile)));
-    serviceTimes = new BufferedReader(new FileReader(new File(serviceTimesFile)));
-    checkForCsvHeaders();
+  public EventGenerator(double lambda, double mu) throws IOException {
+    this.lambda = lambda;
+    this.mu = mu;
+
+    randomAT = new Random();
+    randomST = new Random();
+
+    setup();
   }
 
-  private void checkForCsvHeaders() throws IOException {
-    String nextLine = "";
-    double test;
-
-    if (interArrivalTimes != null) {
-      interArrivalTimes.mark(BUFFER_SIZE);
-      if ((nextLine = interArrivalTimes.readLine()) != null) {
-
-        try {
-          test = Double.parseDouble(nextLine);
-          interArrivalTimes.reset(); // go back to previous line
-        } catch (NumberFormatException e) {
-          System.out.println("Detected csv header in inter-arrival times file, skipping first line of file.");
-        }
-      }
-    }
-
-    if (serviceTimes != null) {
-      serviceTimes.mark(BUFFER_SIZE);
-      if ((nextLine = serviceTimes.readLine()) != null) {
-
-        try {
-          test = Double.parseDouble(nextLine);
-          serviceTimes.reset(); // go back
-        } catch (NumberFormatException e) {
-          System.out.println("Detected csv header in Service Times file, skipping first line of file.");
-        }
-      }
-    }
-  }
-
-  /**
-   * readArrivalTime
-   *
-   * Reads the arrival time without moving the pointer
-   */
-  public double readArrivalTime() throws IOException {
-
-    double nextTime = Double.NEGATIVE_INFINITY;
-    String nextLine = "";
-
-    if (interArrivalTimes != null) {
-
-      interArrivalTimes.mark(BUFFER_SIZE);
-      if ((nextLine = interArrivalTimes.readLine()) != null) {
-        nextTime = Double.parseDouble(nextLine);
-        interArrivalTimes.reset(); // go back to previous line
-      }
-    } else {
-      System.out.println("interArrivalTimes is null");
-    }
-
-    return nextTime;
+  private void setup() {
+    c = 0.767 - 3.36 / lambda;
+    beta = Math.PI / Math.sqrt(3.0 * lambda);
+    alpha = beta * lambda;
+    k = Math.log(c) - lambda - Math.log(beta);
   }
 
   /**
    * nextArrivalTime
    *
-   * @return next arrival time in the inter-arrival input file.
-   *         If the end of file is reached, negative infinity
-   *         is returned
+   * Poisson Formula from:
+   * http://www.johndcook.com/blog/2010/06/14/generating-poisson-random-values/
+   *
+   * @return next generated arrival time
    */
   public double nextArrivalTime() throws IOException {
 
-    double nextTime = Double.NEGATIVE_INFINITY;
-    String nextLine = "";
+    double u, x, y, n, v, lhs, rhs;
+    while(true) {
+      u = randomAT.nextDouble();
+      x = (alpha - Math.log10((1.0 - u)/u)) / beta;
+      n = Math.floor(x + 0.5);
+      if (n < 0)
+    		continue;
 
-    if (interArrivalTimes != null) {
-      if ((nextLine = interArrivalTimes.readLine()) != null) {
-        nextTime = Double.parseDouble(nextLine);
-      }
-    } else {
-      System.out.println("interArrivalTimes is null");
+      v = randomAT.nextDouble();
+      y = alpha - beta * x;
+      lhs = y + Math.log( v / Math.pow(1.0 + Math.exp(y), 2));
+      rhs = k + n * Math.log10(lambda) - logFactorial(n);
+
+    	if (lhs <= rhs)
+    		return n;
     }
 
-    return nextTime;
+  }
+
+  /**
+   * Stirling Approximation for log factorial
+   */
+  private double logFactorial(double x) {
+    return (x - 0.5) * Math.log10(x) - x + (0.5) * Math.log10(2 * Math.PI);
   }
 
   /**
    * nextServiceTime
    *
-   * @return next service time in the service times input file.
-   *         If the end of file is reached, negative infinity
-   *         is returned
+   * Using inversion method to generate exponential distribution
+   *
+   * @return next random service time
    */
   public double nextServiceTime() throws IOException {
-
-    double nextTime = Double.NEGATIVE_INFINITY;
-    String nextLine = "";
-
-    if (serviceTimes != null) {
-      if ((nextLine = serviceTimes.readLine()) != null) {
-        nextTime = Double.parseDouble(nextLine);
-      }
-    } else {
-      System.out.println("serviceTimes is null");
-    }
-
-    return nextTime;
-  }
-
-  /**
-   * close
-   *
-   * properly close the input file streams
-   */
-  public void close() {
-
-    try {
-      if (interArrivalTimes != null) {
-        interArrivalTimes.close();
-      }
-
-      if (serviceTimes != null) {
-        serviceTimes.close();
-      }
-
-    } catch (Exception e) {
-      // ignore
-    }
+    return (-mu) * Math.log(1 - randomST.nextDouble());
   }
 }
