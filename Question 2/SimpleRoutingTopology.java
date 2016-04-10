@@ -10,6 +10,10 @@ import java.io.*;
  */
 public class SimpleRoutingTopology {
 
+  /** Routing Strategies **/
+  public static final String ROUND_ROBIN = "RR";
+  public static final String SHORTEST_TOTAL_QUEUE = "STQ";
+
   private static final String ARRIVAL_EVENT = "Arrival";
   private static final String DEPARTURE_EVENT = "Departure";
 
@@ -24,18 +28,11 @@ public class SimpleRoutingTopology {
   /** Future Event list (set) ordered by event time **/
   private TreeSet<Event> futureEventList;
 
-  /** List of collected statistics **/
-  private List<Statistic> statistics;
-
-  /** first customer queue **/
+  /** customer queues **/
   private Queue<Double> queue_one;
-
-  /** second customer queue **/
   private Queue<Double> queue_two;
 
   /** total number of departures **/
-  private long numberOfDeparturesFromServerOne;
-  private long numberOfDeparturesFromServerTwo;
   private long totalNumberOfDepartures;
 
   /** total number of arrivals **/
@@ -48,34 +45,17 @@ public class SimpleRoutingTopology {
   private boolean queue_one_is_busy;
   private boolean queue_two_is_busy;
 
-  private String outputFormat;
-
-  private double currentStartTimeOfServerOne;
-  private double currentStartTimeOfServerTwo;
-
-  private double totalServerOneFreeTime;
-  private double totalServerTwoFreeTime;
-
-  private double delay_q1;
-  private double delay_q2;
-
-  private double totalDelay_q1;
-  private double totalDelay_q2;
-
-  private long delayCounter_q1;
-  private long delayCounter_q2;
-
-  private double previousServiceTime_q1;
-  private double previousServiceTime_q2;
-
-  private double previousArrivalTime_q1;
-  private double previousArrivalTime_q2;
+  private double[] delay;
+  private double[] totalDelay;
+  private double[] delayCount;
+  private double[] previousServiceTime;
+  private double[] previousArrivalTime;
 
   private long numOfDataPoints;
 
-  private Map<Integer, Long> frequencies;
-
   private boolean arrivalUp;
+
+  private String routingStrategy;
 
   /**
    * SingleServerQueue
@@ -83,52 +63,38 @@ public class SimpleRoutingTopology {
    * @param eventGenerator for generating arrival times
    *        and service times
    */
-  public SimpleRoutingTopology(EventGenerator eventGenerator, long numOfDataPoints, String outputFormat) {
+  public SimpleRoutingTopology(EventGenerator eventGenerator, long numOfDataPoints, String routingStrategy) {
+
     this.eventGenerator = eventGenerator;
     this.numOfDataPoints = numOfDataPoints;
 
     futureEventList = new TreeSet<Event>(new EventComparator());
-    statistics = new ArrayList<Statistic>();
     queue_one = new LinkedList<Double>();
     queue_two = new LinkedList<Double>();
-
-    this.outputFormat = outputFormat;
 
     clock = 0.0;
     queue_one_is_busy = false;
     queue_two_is_busy = false;
     numberOfArrivals = 0;
-    numberOfDeparturesFromServerOne = 0;
-    numberOfDeparturesFromServerTwo = 0;
-    currentStartTimeOfServerOne = 0.0;
-    currentStartTimeOfServerTwo = 0.0;
-    totalServerOneFreeTime = 0.0;
-    totalServerTwoFreeTime = 0.0;
 
-    delay_q1 = 0.0;
-    delay_q2 = 0.0;
-    totalDelay_q1 = 0.0;
-    totalDelay_q2 = 0.0;
-    delayCounter_q1 = 0;
-    delayCounter_q2 = 0;
-    previousArrivalTime_q1 = 0.0;
-    previousArrivalTime_q2 = 0.0;
-    previousServiceTime_q1 = 0.0;
-    previousServiceTime_q2 = 0.0;
+    delay = new double[]{0.0, 0.0};
+    totalDelay = new double[]{0.0, 0.0};
+    delayCount = new double[]{0, 0};
+    previousArrivalTime = new double[]{0.0, 0.0};
+    previousServiceTime = new double[]{0.0, 0.0};
 
     totalNumberOfDepartures = 0;
 
     random = new Random();
 
-    frequencies = new HashMap<>();
-    frequencies.put(5, new Long(0));
-    frequencies.put(10, new Long(0));
-    frequencies.put(15, new Long(0));
-    frequencies.put(20, new Long(0));
-    frequencies.put(25, new Long(0));
-    frequencies.put(30, new Long(0));
-
     arrivalUp = false;
+
+    if (routingStrategy.equals(ROUND_ROBIN) || routingStrategy.equals(SHORTEST_TOTAL_QUEUE)) {
+      this.routingStrategy = routingStrategy;
+    } else {
+      System.out.println("Error: invalid routing strategy: " + routingStrategy);
+      return;
+    }
   }
 
   /**
@@ -138,7 +104,7 @@ public class SimpleRoutingTopology {
    * simulation ends when an event in the
    * futureEventList has time t = -1
    */
-  public void run() throws IOException {
+  public void run() {
 
     initialConditions(); // start simulation
 
@@ -170,7 +136,7 @@ public class SimpleRoutingTopology {
    * start the clock at the first arrival time and
    * setup departure of first event for queue one
    */
-  private void initialConditions() throws IOException {
+  private void initialConditions() {
 
     // Set clock to first arrival time
     clock = eventGenerator.nextArrivalTime();
@@ -179,8 +145,6 @@ public class SimpleRoutingTopology {
 
     // Set LS(t) = 1
     queue_one_is_busy = true;
-    totalServerOneFreeTime += clock;
-    totalServerTwoFreeTime += clock;
 
     // Generate Service Time s*;
     // Schedule new Departure event
@@ -196,35 +160,41 @@ public class SimpleRoutingTopology {
 
     numberOfArrivals += 1;
 
-    delay_q1 = Math.max(0, delay_q1 + previousArrivalTime_q1 + previousServiceTime_q1 - arrivalTime);
-
-    collectStatistics();
-
-    previousArrivalTime_q1 = arrivalTime;
-    previousServiceTime_q1 = serviceTime;
+    updateDelays(QUEUE_ONE, arrivalTime, serviceTime);
 
     // Return control to time-advance
     // routine to continue simulation
   }
 
+  /**
+   * chooseQueue
+   *
+   * determines which queue the customer
+   * should be placed in.
+   *
+   * @return queue number
+   */
   private int chooseQueue() {
-    if (!queue_one_is_busy) {
-      return QUEUE_ONE;
-    } else if (!queue_two_is_busy) {
-      return QUEUE_TWO;
-    } else if (queue_one.size() <= queue_two.size()) {
-      return QUEUE_ONE;
-    } else {
-      return QUEUE_TWO;
+
+    if (routingStrategy.equals(SHORTEST_TOTAL_QUEUE)) {
+      if (!queue_one_is_busy) {
+        return QUEUE_ONE;
+      } else if (!queue_two_is_busy) {
+        return QUEUE_TWO;
+      } else if (queue_one.size() <= queue_two.size()) {
+        return QUEUE_ONE;
+      } else {
+        return QUEUE_TWO;
+      }
+    } else { // Round Robin
+      if (arrivalUp) {
+        arrivalUp = false;
+        return QUEUE_ONE;
+      } else {
+        arrivalUp = true;
+        return QUEUE_TWO;
+      }
     }
-    
-    // if (arrivalUp) {
-    //   arrivalUp = false;
-    //   return QUEUE_ONE;
-    // } else {
-    //   arrivalUp = true;
-    //   return QUEUE_TWO;
-    // }
   }
 
   /**
@@ -232,7 +202,7 @@ public class SimpleRoutingTopology {
    *
    * simulate arrival event at time t = clock
    */
-  private void arrivalEvent(Event event) throws IOException {
+  private void arrivalEvent(Event event) {
 
     double serviceTime = 0.0;
     double arrivalTime = clock;
@@ -249,7 +219,6 @@ public class SimpleRoutingTopology {
 
         // Set LS_1(t) = 1
         queue_one_is_busy = true;
-        totalServerOneFreeTime += clock - currentStartTimeOfServerOne;
 
         // Generate service time s*;
         // Schedule new Departure event
@@ -258,11 +227,7 @@ public class SimpleRoutingTopology {
         futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
-      delay_q1 = Math.max(0, delay_q1 + previousArrivalTime_q1 + previousServiceTime_q1 - arrivalTime);
-      totalDelay_q1 += delay_q1;
-      delayCounter_q1 += 1;
-      previousArrivalTime_q1 = arrivalTime;
-      previousServiceTime_q1 = serviceTime;
+      updateDelays(QUEUE_ONE, arrivalTime, serviceTime);
 
     } else { // QUEUE_TWO
 
@@ -276,7 +241,6 @@ public class SimpleRoutingTopology {
 
         // Set LS_2(t) = 1
         queue_two_is_busy = true;
-        totalServerTwoFreeTime += clock - currentStartTimeOfServerTwo;
 
         // Generate service time s*;
         // Schedule new Departure event
@@ -285,28 +249,29 @@ public class SimpleRoutingTopology {
         futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
-      delay_q2 = Math.max(0, delay_q2 + previousArrivalTime_q2 + previousServiceTime_q2 - arrivalTime);
-      totalDelay_q2 += delay_q2;
-      delayCounter_q2 += 1;
-      previousArrivalTime_q2 = arrivalTime;
-      previousServiceTime_q2 = serviceTime;
+      updateDelays(QUEUE_TWO, arrivalTime, serviceTime);
     }
 
 
     // Generate interarrival time a*;
     // Schedule next arrival event
     // at time t + a*;
-
     double nextArrivalTime = eventGenerator.nextArrivalTime();
     futureEventList.add(new Event(chooseQueue(), ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
     numberOfArrivals += 1;
 
-    // collectStatistics(); // FIXME: be sure to disable this when running actual simulation
-
-
     // Return control to time-advance
     // routine to continue simulation
+  }
+
+  private void updateDelays(int i, double arrivalTime, double serviceTime) {
+    i-=1;
+    delay[i] = Math.max(0, delay[i] + previousArrivalTime[i] + previousServiceTime[i] - arrivalTime);
+    totalDelay[i] += delay[i];
+    delayCount[i] += 1;
+    previousArrivalTime[i] = arrivalTime;
+    previousServiceTime[i] = serviceTime;
   }
 
   /**
@@ -314,7 +279,7 @@ public class SimpleRoutingTopology {
    *
    * simulate departure event at time t = clock
    */
-  private void departureEvent(Event event) throws IOException {
+  private void departureEvent(Event event) {
 
     // Which queue is the event for?
     if (event.queue == QUEUE_ONE) {
@@ -334,11 +299,7 @@ public class SimpleRoutingTopology {
 
         // Set LS_1(t) = 0
         queue_one_is_busy = false;
-
-        currentStartTimeOfServerOne = clock;
       }
-
-      numberOfDeparturesFromServerOne += 1;
 
     } else { // QUEUE_TWO
 
@@ -357,75 +318,14 @@ public class SimpleRoutingTopology {
 
         // Set LS_2(t) = 0
         queue_two_is_busy = false;
-
-        currentStartTimeOfServerTwo = clock;
       }
 
-      numberOfDeparturesFromServerTwo += 1;
     }
 
     totalNumberOfDepartures += 1;
-    collectStatistics();
 
     // Return control to time-advance
     // routine to continue simulation
-  }
-
-  /**
-   * collectStatistics
-   *
-   * collect and store statistics
-   * at the current clock time of
-   * the simulation
-   */
-  private void collectStatistics() {
-
-    // long size = queue_one.size();
-    // if (size <= 5) {
-    //   frequencies.put(5, frequencies.get(5) + 1);
-    // } else if (size <= 10) {
-    //   frequencies.put(10, frequencies.get(10) + 1);
-    // } else if (size <= 15) {
-    //   frequencies.put(15, frequencies.get(15) + 1);
-    // } else if (size <= 20) {
-    //   frequencies.put(20, frequencies.get(20) + 1);
-    // } else if (size <= 25) {
-    //   frequencies.put(25, frequencies.get(25) + 1);
-    // } else if (size > 25) {
-    //   frequencies.put(30, frequencies.get(30) + 1);
-    // }
-    //
-    // Statistic statisticOne = new Statistic(
-    //   QUEUE_ONE,
-    //   this.clock,
-    //   new ArrayList(this.futureEventList), // clone
-    //   this.numberOfDeparturesFromServerOne,
-    //   this.queue_one.size(),
-    //   queue_one_is_busy ? 1: 0,
-    //   delay,
-    //   outputFormat);
-    //
-    // Statistic statisticTwo = new Statistic(
-    //   QUEUE_TWO,
-    //   this.clock,
-    //   new ArrayList(this.futureEventList), // clone
-    //   this.numberOfDeparturesFromServerTwo,
-    //   this.queue_two.size(),
-    //   queue_two_is_busy ? 1: 0,
-    //   delay,
-    //   outputFormat);
-    //
-    // statistics.add(statisticTwo);
-    // statistics.add(statisticOne);
-  }
-
-  /**
-   * getStatistics
-   *
-   * return list of gathered statistics
-   */
-  public List<Statistic> getStatistics() {
-    return statistics;
   }
 
   /**
@@ -459,81 +359,6 @@ public class SimpleRoutingTopology {
 
       df = new DecimalFormat("#.#########");
     }
-
-    @Override
-    public String toString() {
-      return "(" + type + "; queue " + queue + "; " + df.format(time) + ")";
-    }
-  }
-
-  /**
-   * Statistic
-   *
-   * Statistics of the simulation
-   * at a given clock time.
-   * @param current time
-   * @param future event list
-   * @param number of departures
-   * @param size of customer queue
-   */
-  public static class Statistic {
-
-    private DecimalFormat df;
-
-    private String format;
-
-    public int queue;
-    public double clock;
-    public List<Event> futureEventList;
-    public long numberOfDepartures;
-    public long queueSize;
-    public double delay;
-    public int serverInUse;
-
-    public Statistic(int queue, double clock, List<Event> futureEventList,
-      long numberOfDepartures, long queueSize, int serverInUse,
-      double delay, String format) {
-      this.queue = queue;
-      this.clock = clock;
-      this.futureEventList = futureEventList;
-      this.numberOfDepartures = numberOfDepartures;
-      this.queueSize = queueSize;
-      this.serverInUse = serverInUse;
-      this.delay = delay;
-      this.format = format;
-
-      df = new DecimalFormat("#.#########");
-    }
-
-    @Override
-    public String toString() {
-      String fel = "";
-      for (Event e : futureEventList) {
-        fel += e.toString() + "; ";
-      }
-
-      if (format.equals("csv") || format.equals("csv-no-header")) {
-        return queue +
-               "," + df.format(clock) +
-               ",[" + fel + "]" +
-               "," + numberOfDepartures +
-               "," + queueSize +
-               "," + serverInUse +
-               "," + delay;
-      } else if (format.equals("delay")) {
-        long numberOfPackets = queueSize + serverInUse;
-        return df.format(delay) +
-               "," + numberOfPackets;
-      } else {
-        return "Queue: " + queue +
-               "Clock: " + df.format(clock) +
-               ", Future Event List: [" + fel + "]" +
-               ", Number of Departures: " + numberOfDepartures +
-               ", Queue Size: " + queueSize +
-               ", Server in use: " + serverInUse +
-               ", Delay: " + delay;
-      }
-    }
   }
 
   /**
@@ -547,15 +372,8 @@ public class SimpleRoutingTopology {
     }
   }
 
-
-  public void printFrequencies() {
-    System.out.println(frequencies.toString());
-  }
-
-  public void printDelays() {
-    double avgDelay_q1 = totalDelay_q1 / delayCounter_q1;
-    double avgDelay_q2 = totalDelay_q2 / delayCounter_q2;
-    System.out.println("Average delay for queue 1: " + avgDelay_q1);
-    System.out.println("Average delay for queue 2: " + avgDelay_q2);
+  public void printResults() {
+    System.out.println("Average delay for queue 1: " + totalDelay[0] / delayCount[0]);
+    System.out.println("Average delay for queue 2: " + totalDelay[1] / delayCount[1]);
   }
 }

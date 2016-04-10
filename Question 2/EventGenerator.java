@@ -6,7 +6,7 @@ import java.io.*;
  * generates random variables.
  *
  * @author Kevin Rosengren, Ian Wong, Nikola Neskovic
- * @version 11/03/16
+ * @version 10/04/16
  */
 public class EventGenerator {
 
@@ -14,17 +14,13 @@ public class EventGenerator {
   private Random randomST;
   private double lambda;
   private double mu;
-  private double c;
-  private double k;
-  private double alpha;
-  private double beta;
 
   /**
    *
    * @param lambda
    * @param mu
    */
-  public EventGenerator(double lambda, double mu) throws IOException {
+  public EventGenerator(double lambda, double mu) {
     this.lambda = lambda;
     this.mu = mu;
 
@@ -35,9 +31,11 @@ public class EventGenerator {
   /**
    * nextArrivalTime
    *
+   * Using inversion method to generate exponential distribution
+   *
    * @return next generated arrival time
    */
-  public double nextArrivalTime() throws IOException {
+  public double nextArrivalTime() {
     return (-1 / lambda) * Math.log(1 - randomAT.nextDouble());
   }
 
