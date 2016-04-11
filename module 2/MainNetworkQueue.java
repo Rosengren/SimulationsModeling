@@ -66,9 +66,8 @@ public class MainNetworkQueue {
         "\tq: " + q + "\n" +
         "\t# of Departures: " + departures);
 
-    for (int i = 0; i < replicas; i++) {
-      run(generatorType, lambda, mu, p, q, departures);
-    }
+    run(generatorType, lambda, mu, p, q, departures, replicas);
+
   }
 
   /**
@@ -76,21 +75,24 @@ public class MainNetworkQueue {
    *
    * Initialize and run Single Server Queue
    */
-  public static void run(String generatorType, double lambda, double mu, double p, double q, long departures) {
+  public static void run(String generatorType, double lambda, double mu, double p, double q, long departures, int replicas) {
 
     EventGenerator generator1, generator2;
-    if (generatorType.equals("COR")) {
-      generator1 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
-      generator2 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
-    } else {
-      generator1 = new DefaultEventGenerator(lambda, mu);
-      generator2 = new DefaultEventGenerator(lambda, mu);
+
+    for (int i = 0; i < replicas; i++) {
+      if (generatorType.equals("COR")) {
+        generator1 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
+        generator2 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
+      } else {
+        generator1 = new DefaultEventGenerator(lambda, mu);
+        generator2 = new DefaultEventGenerator(lambda, mu);
+      }
+
+      NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator1, generator2, p, q, departures);
+      server.run();
+
+      System.out.println("\n");
+      server.printResults();
     }
-
-    NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator1, generator2, p, q, departures);
-    server.run();
-
-    System.out.println("\n");
-    server.printResults();
   }
 }

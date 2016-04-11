@@ -29,7 +29,7 @@ public class TESModelGenerator {
   public void setUniformRange(double a, double b) {
     this.a = a;
     this.b = b;
-    System.out.println("Range set to [" + b + "," + a + "]");
+    // System.out.println("Range set to [" + b + "," + a + "]");
   }
 
   /**
@@ -62,10 +62,10 @@ public class TESModelGenerator {
   /**
    * stitchTransform
    *
-   * Perform a stich transformation on a given 
+   * Perform a stich transformation on a given
    * random variable u' and a stitching parameter xi
    *
-   * @param u  : u'n
+   * @param u  : u'
    * @param xi : stitch parameter
    */
   public double stitchTransform(double u, double xi) {

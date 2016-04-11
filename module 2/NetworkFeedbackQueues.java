@@ -49,7 +49,7 @@ public class NetworkFeedbackQueues {
 
   private Map<Integer, Long> queue_one_histogram;
   private Map<Integer, Long> queue_two_histogram;
-  private int[] bins = {5, 10, 15, 20, 25, 30};
+  private int[] bins = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55};
 
   /** used to calculate delays **/
   private double[] delay;
@@ -116,7 +116,7 @@ public class NetworkFeedbackQueues {
       nextEvent = futureEventList.pollFirst(); // first element
 
       if (totalNumberOfDepartures >= numberOfDepartures) {
-        System.out.println("Finished simulation.");
+        // System.out.println("Finished simulation.");
         break;
       } else {
         // Advance clock to next event time
@@ -463,6 +463,18 @@ public class NetworkFeedbackQueues {
     // Delays
     System.out.println("Average delay for queue 1: " + totalDelay[0] / delayCount[0]);
     System.out.println("Average delay for queue 2: " + totalDelay[1] / delayCount[1]);
+  }
+
+  public Map<Integer, Long> getQueueOneHistogram() {
+    return queue_one_histogram;
+  }
+
+  public Map<Integer, Long> getQueueTwoHistogram() {
+    return queue_two_histogram;
+  }
+
+  public double getAverageDelay() {
+    return (totalDelay[0] / delayCount[0] + totalDelay[1] / delayCount[1]) / 2;
   }
 
   private void updateDelays(int i, double arrivalTime, double serviceTime) {
