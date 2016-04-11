@@ -319,7 +319,6 @@ public class SimpleRoutingTopology {
         // Set LS_2(t) = 0
         queue_two_is_busy = false;
       }
-
     }
 
     totalNumberOfDepartures += 1;

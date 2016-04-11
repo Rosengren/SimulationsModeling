@@ -19,7 +19,7 @@ public class MainNetworkQueue {
    */
   public static void main(String[] args) throws IOException {
 
-    if (args.length < 5) {
+    if (args.length < 6) {
       System.out.println("Missing parameters:\n" +
         "(1) Lambda\n" +
         "(2) Mu\n" +
@@ -27,14 +27,11 @@ public class MainNetworkQueue {
         "(4) Probability q\n" +
         "(5) Number of Data Points\n" +
         "(6) Statistics Output File\n" +
-        "(7) Output Format [default = csv]");
+        "(7) Event Generation Type (DEF or COR)");
       return;
     }
 
     String format = "csv";
-    if (args.length > 6) {
-      format = args[6];
-    }
 
     double p = 0.0;
     double q = 0.0;
@@ -69,7 +66,7 @@ public class MainNetworkQueue {
    */
   public static void run(double lambda, double mu, double p, double q, long dataPoints, String outputFile, String outputFormat) throws IOException {
 
-    EventGenerator generator = new EventGenerator(lambda, mu);
+    EventGenerator generator = new DefaultEventGenerator(lambda, mu);
     NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator, p, q, dataPoints, outputFormat);
     server.run();
 
