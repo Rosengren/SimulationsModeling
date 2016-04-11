@@ -607,7 +607,6 @@ public class NetworkFeedbackQueues {
     }
   }
 
-
   public void printFrequencies() {
     System.out.println(frequencies.toString());
   }
