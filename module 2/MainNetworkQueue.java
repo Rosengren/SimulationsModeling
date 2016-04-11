@@ -10,6 +10,9 @@ import java.io.*;
  */
 public class MainNetworkQueue {
 
+  private static final double XI = 0.7;
+  private static final double INTERVAL = 0.01;
+
   /**
    * main
    *
@@ -25,25 +28,32 @@ public class MainNetworkQueue {
         "(2) Mu\n" +
         "(3) Probability p\n" +
         "(4) Probability q\n" +
-        "(5) Number of Data Points\n" +
-        "(6) Statistics Output File\n" +
+        "(5) Number of departures\n" +
+        "(6) Number of replicas\n" +
         "(7) Event Generation Type (DEF or COR)");
       return;
     }
 
-    String format = "csv";
+    String generatorType = "DEF";
+    if (args.length > 6) {
+      if (args[6].equals("COR")) {
+        generatorType = "COR";
+      }
+    }
 
     double p = 0.0;
     double q = 0.0;
     double lambda = 0.0;
     double mu = 0.0;
-    long dataPoints = 0;
+    long departures = 0;
+    int replicas = 0;
     try {
       lambda = Double.parseDouble(args[0]);
       mu = Double.parseDouble(args[1]);
       p = Double.parseDouble(args[2]);
       q = Double.parseDouble(args[3]);
-      dataPoints = Long.parseLong(args[4]);
+      departures = Long.parseLong(args[4]);
+      replicas = Integer.parseInt(args[5]);
     } catch (Exception e) {
       System.out.println("Error: Could not parse doubles");
       return;
@@ -54,9 +64,11 @@ public class MainNetworkQueue {
         "\tMu: " + mu + "\n" +
         "\tp: " + p + "\n" +
         "\tq: " + q + "\n" +
-        "\tData Points: " + dataPoints);
+        "\t# of Departures: " + departures);
 
-    run(lambda, mu, p, q, dataPoints, args[5], format);
+    for (int i = 0; i < replicas; i++) {
+      run(generatorType, lambda, mu, p, q, departures);
+    }
   }
 
   /**
@@ -64,30 +76,21 @@ public class MainNetworkQueue {
    *
    * Initialize and run Single Server Queue
    */
-  public static void run(double lambda, double mu, double p, double q, long dataPoints, String outputFile, String outputFormat) throws IOException {
+  public static void run(String generatorType, double lambda, double mu, double p, double q, long departures) {
 
-    EventGenerator generator = new DefaultEventGenerator(lambda, mu);
-    NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator, p, q, dataPoints, outputFormat);
+    EventGenerator generator1, generator2;
+    if (generatorType.equals("COR")) {
+      generator1 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
+      generator2 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
+    } else {
+      generator1 = new DefaultEventGenerator(lambda, mu);
+      generator2 = new DefaultEventGenerator(lambda, mu);
+    }
+
+    NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator1, generator2, p, q, departures);
     server.run();
 
-    BufferedWriter out = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(outputFile), "utf-8"));
-
-    if (outputFormat.equals("csv")) {
-      out.write("Queue,Time,Future Event List,Number of Departures,Queue Size,Server Occupied,Delay");
-      out.newLine();
-    } else if (outputFormat.equals("delay")) {
-      out.write("Delay,Number of Packets,Utilization");
-      out.newLine();
-    }
-
-    server.printFrequencies();
-
-    // Output results to a file
-    for (NetworkFeedbackQueues.Statistic stat : server.getStatistics()) {
-      out.write(stat.toString());
-      out.newLine();
-    }
-
-    out.close();
+    System.out.println("\n");
+    server.printResults();
   }
 }

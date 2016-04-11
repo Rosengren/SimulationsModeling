@@ -33,7 +33,7 @@ public class CorrelatedEventGenerator implements EventGenerator {
     randomST = new Random();
 
     generator = new TESModelGenerator();
-    generator.setUniformRange(-interval, interval);
+    generator.setUniformRange(interval, -interval);
 
     previous_AT_U_prime = randomAT.nextDouble();
     previous_ST_U_prime = randomST.nextDouble();
@@ -70,7 +70,7 @@ public class CorrelatedEventGenerator implements EventGenerator {
     double u_n = generator.stitchTransform(u_prime, xi);
     previous_ST_U_prime = u_prime;
 
-    return generator.inverseExponentialTransform(lambda, u_n);
+    return generator.inverseExponentialTransform(mu, u_n);
   }
 
 }

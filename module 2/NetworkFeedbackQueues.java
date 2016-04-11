@@ -14,39 +14,25 @@ public class NetworkFeedbackQueues {
   private static final String FEEDBACK_EVENT = "Feedback";
   private static final String DEPARTURE_EVENT = "Departure";
 
-  private static final int ANY_QUEUE = 0;
-  private static final int QUEUE_ONE = 1;
-  private static final int QUEUE_TWO = 2;
+  private static final int QUEUE_ONE = 0;
+  private static final int QUEUE_TWO = 1;
 
+  /** random number generator for probabilities **/
   private Random random;
 
   /** probabilities of staying in the system **/
-  private double p;
-  private double q;
-
+  private double p, q;
 
   /** generates new arrival times and service times **/
-  private EventGenerator eventGenerator;
+  private EventGenerator eventGenerator_one;
+  private EventGenerator eventGenerator_two;
 
   /** Future Event list (set) ordered by event time **/
   private TreeSet<Event> futureEventList;
 
-  /** List of collected statistics **/
-  private List<Statistic> statistics;
-
-  /** first customer queue **/
+  /** customer queues **/
   private Queue<Double> queue_one;
-
-  /** second customer queue **/
   private Queue<Double> queue_two;
-
-  /** total number of departures **/
-  private long numberOfDeparturesFromServerOne;
-  private long numberOfDeparturesFromServerTwo;
-  private long totalNumberOfDepartures;
-
-  /** total number of arrivals **/
-  private long numberOfArrivals;
 
   /** current clock time **/
   private double clock;
@@ -55,23 +41,22 @@ public class NetworkFeedbackQueues {
   private boolean queue_one_is_busy;
   private boolean queue_two_is_busy;
 
-  private String outputFormat;
+  /** How many departures before exiting **/
+  private long numberOfDepartures;
 
-  private double currentStartTimeOfServerOne;
-  private double currentStartTimeOfServerTwo;
+  /** number of departures so far **/
+  private long totalNumberOfDepartures;
 
-  private double totalServerOneFreeTime;
-  private double totalServerTwoFreeTime;
+  private Map<Integer, Long> queue_one_histogram;
+  private Map<Integer, Long> queue_two_histogram;
+  private int[] bins = {5, 10, 15, 20, 25, 30};
 
-  private double delay;
-
-  private double previousServiceTime;
-
-  private double previousArrivalTime;
-
-  private long numOfDataPoints;
-
-  private Map<Integer, Long> frequencies;
+  /** used to calculate delays **/
+  private double[] delay;
+  private double[] totalDelay;
+  private double[] delayCount;
+  private double[] previousServiceTime;
+  private double[] previousArrivalTime;
 
   /**
    * SingleServerQueue
@@ -79,31 +64,25 @@ public class NetworkFeedbackQueues {
    * @param eventGenerator for generating arrival times
    *        and service times
    */
-  public NetworkFeedbackQueues(EventGenerator eventGenerator, double p, double q, long numOfDataPoints, String outputFormat) {
-    this.eventGenerator = eventGenerator;
-    this.numOfDataPoints = numOfDataPoints;
+  public NetworkFeedbackQueues(EventGenerator eventGenerator_one,
+      EventGenerator eventGenerator_two, double p, double q, long numberOfDepartures) {
+    this.eventGenerator_one = eventGenerator_one;
+    this.eventGenerator_two = eventGenerator_two;
+    this.numberOfDepartures = numberOfDepartures;
 
     futureEventList = new TreeSet<Event>(new EventComparator());
-    statistics = new ArrayList<Statistic>();
     queue_one = new LinkedList<Double>();
     queue_two = new LinkedList<Double>();
-
-    this.outputFormat = outputFormat;
 
     clock = 0.0;
     queue_one_is_busy = false;
     queue_two_is_busy = false;
-    numberOfArrivals = 0;
-    numberOfDeparturesFromServerOne = 0;
-    numberOfDeparturesFromServerTwo = 0;
-    currentStartTimeOfServerOne = 0.0;
-    currentStartTimeOfServerTwo = 0.0;
-    totalServerOneFreeTime = 0.0;
-    totalServerTwoFreeTime = 0.0;
 
-    delay = 0.0;
-    previousArrivalTime = 0.0;
-    previousServiceTime = 0.0;
+    delay = new double[]{0.0, 0.0};
+    totalDelay = new double[]{0.0, 0.0};
+    delayCount = new double[]{0, 0};
+    previousArrivalTime = new double[]{0.0, 0.0};
+    previousServiceTime = new double[]{0.0, 0.0};
 
     totalNumberOfDepartures = 0;
 
@@ -111,13 +90,14 @@ public class NetworkFeedbackQueues {
     this.p = p;
     this.q = q;
 
-    frequencies = new HashMap<>();
-    frequencies.put(5, new Long(0));
-    frequencies.put(10, new Long(0));
-    frequencies.put(15, new Long(0));
-    frequencies.put(20, new Long(0));
-    frequencies.put(25, new Long(0));
-    frequencies.put(30, new Long(0));
+    queue_one_histogram = new HashMap<>();
+    queue_two_histogram = new HashMap<>();
+
+    // Create bins in hashmap
+    for (int i = 0; i < bins.length; i++) {
+      queue_one_histogram.put(bins[i], new Long(0));
+      queue_two_histogram.put(bins[i], new Long(0));
+    }
   }
 
   /**
@@ -127,7 +107,7 @@ public class NetworkFeedbackQueues {
    * simulation ends when an event in the
    * futureEventList has time t = -1
    */
-  public void run() throws IOException {
+  public void run() {
 
     initialConditions(); // start simulation
 
@@ -135,7 +115,7 @@ public class NetworkFeedbackQueues {
     while (!futureEventList.isEmpty()) {
       nextEvent = futureEventList.pollFirst(); // first element
 
-      if (totalNumberOfDepartures >= numOfDataPoints) {
+      if (totalNumberOfDepartures >= numberOfDepartures) {
         System.out.println("Finished simulation.");
         break;
       } else {
@@ -159,45 +139,38 @@ public class NetworkFeedbackQueues {
    * start the clock at the first arrival time and
    * setup departure of first event for queue one
    */
-  private void initialConditions() throws IOException {
+  private void initialConditions() {
 
     // Set clock to first arrival time
-    clock = eventGenerator.nextArrivalTime();
+    clock = eventGenerator_one.nextArrivalTime();
 
     double arrivalTime = clock;
-
 
     // Set LS(t) = 1
     queue_one_is_busy = true;
     queue_two_is_busy = true;
-    totalServerOneFreeTime += clock;
-    totalServerTwoFreeTime += clock;
 
     // Generate Service Time s*;
     // Schedule new Departure event
     // at time t + s*;
-    double serviceTime = eventGenerator.nextServiceTime();
+    double serviceTime = eventGenerator_one.nextServiceTime();
     futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
+    updateDelays(QUEUE_ONE, arrivalTime, serviceTime);
 
-    serviceTime = eventGenerator.nextServiceTime();
+    serviceTime = eventGenerator_two.nextServiceTime();
     futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
+    updateDelays(QUEUE_TWO, arrivalTime, serviceTime);
 
     // Generate interarrival time a*;
     // Schedule next arrival event
     // at time t + a*;
-    double nextArrivalTime = eventGenerator.nextArrivalTime();
+    double nextArrivalTime = eventGenerator_one.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
-    nextArrivalTime = eventGenerator.nextArrivalTime();
+
+    nextArrivalTime = eventGenerator_two.nextArrivalTime();
     futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
 
-    numberOfArrivals += 1;
-
-    // delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
-
     collectStatistics();
-
-    previousArrivalTime = arrivalTime;
-    previousServiceTime = serviceTime;
 
     // Return control to time-advance
     // routine to continue simulation
@@ -208,7 +181,7 @@ public class NetworkFeedbackQueues {
    *
    * simulate arrival event at time t = clock
    */
-  private void arrivalEvent(Event event) throws IOException {
+  private void arrivalEvent(Event event) {
 
     double serviceTime = 0.0;
     double arrivalTime = clock;
@@ -219,26 +192,27 @@ public class NetworkFeedbackQueues {
       if (queue_one_is_busy) {
 
         // Increase LQ_1(t) by 1
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_one.nextServiceTime();
         queue_one.add(serviceTime);
       } else {
 
         // Set LS_1(t) = 1
         queue_one_is_busy = true;
-        totalServerOneFreeTime += clock - currentStartTimeOfServerOne;
 
         // Generate service time s*;
         // Schedule new Departure event
         // at time t + s*;
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_one.nextServiceTime();
         futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
       // Generate interarrival time a*;
       // Schedule next arrival event
       // at time t + a*;
-      double nextArrivalTime = eventGenerator.nextArrivalTime();
+      double nextArrivalTime = eventGenerator_one.nextArrivalTime();
       futureEventList.add(new Event(QUEUE_ONE, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+
+      updateDelays(QUEUE_ONE, arrivalTime, serviceTime);
 
     } else { // QUEUE_TWO
 
@@ -246,36 +220,28 @@ public class NetworkFeedbackQueues {
       if (queue_two_is_busy) {
 
         // Increase LQ_2(t) by 1
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_two.nextServiceTime();
         queue_two.add(serviceTime);
       } else {
 
         // Set LS_2(t) = 1
         queue_two_is_busy = true;
-        totalServerTwoFreeTime += clock - currentStartTimeOfServerTwo;
 
         // Generate service time s*;
         // Schedule new Departure event
         // at time t + s*;
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_two.nextServiceTime();
         futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
       // Generate interarrival time a*;
       // Schedule next arrival event
       // at time t + a*;
-      double nextArrivalTime = eventGenerator.nextArrivalTime();
+      double nextArrivalTime = eventGenerator_two.nextArrivalTime();
       futureEventList.add(new Event(QUEUE_TWO, ARRIVAL_EVENT, clock + nextArrivalTime, nextArrivalTime));
+
+      updateDelays(QUEUE_TWO, arrivalTime, serviceTime);
     }
-
-    numberOfArrivals += 1;
-
-    // delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
-
-    // collectStatistics(); // FIXME: be sure to disable this when running actual simulation
-
-    // previousArrivalTime = arrivalTime;
-    // previousServiceTime = serviceTime;
 
     // Return control to time-advance
     // routine to continue simulation
@@ -286,7 +252,7 @@ public class NetworkFeedbackQueues {
    *
    * simulate feedback event at time t = clock
    */
-  private void feedbackEvent(Event event) throws IOException {
+  private void feedbackEvent(Event event) {
 
     double serviceTime = 0.0;
     double arrivalTime = clock;
@@ -297,18 +263,17 @@ public class NetworkFeedbackQueues {
       if (queue_one_is_busy) {
 
         // Increase LQ_1(t) by 1
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_one.nextServiceTime();
         queue_one.add(serviceTime);
       } else {
 
         // Set LS_1(t) = 1
         queue_one_is_busy = true;
-        totalServerOneFreeTime += clock - currentStartTimeOfServerOne;
 
         // Generate service time s*;
         // Schedule new Departure event
         // at time t + s*;
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_one.nextServiceTime();
         futureEventList.add(new Event(QUEUE_ONE, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
 
@@ -318,42 +283,31 @@ public class NetworkFeedbackQueues {
       if (queue_two_is_busy) {
 
         // Increase LQ_2(t) by 1
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_two.nextServiceTime();
         queue_two.add(serviceTime);
       } else {
 
         // Set LS_2(t) = 1
         queue_two_is_busy = true;
-        totalServerTwoFreeTime += clock - currentStartTimeOfServerTwo;
 
         // Generate service time s*;
         // Schedule new Departure event
         // at time t + s*;
-        serviceTime = eventGenerator.nextServiceTime();
+        serviceTime = eventGenerator_two.nextServiceTime();
         futureEventList.add(new Event(QUEUE_TWO, DEPARTURE_EVENT, clock + serviceTime, serviceTime));
       }
     }
 
-    numberOfArrivals += 1;
-
-    // delay = Math.max(0, delay + previousArrivalTime + previousServiceTime - arrivalTime);
-
-    // collectStatistics(); // FIXME: be sure to disable this when running actual simulation
-
-    // previousArrivalTime = arrivalTime;
-    // previousServiceTime = serviceTime;
-
     // Return control to time-advance
     // routine to continue simulation
   }
-
 
   /**
    * departureEvent
    *
    * simulate departure event at time t = clock
    */
-  private void departureEvent(Event event) throws IOException {
+  private void departureEvent(Event event) {
 
     // Which queue is the event for?
     if (event.queue == QUEUE_ONE) {
@@ -373,8 +327,6 @@ public class NetworkFeedbackQueues {
 
         // Set LS_1(t) = 0
         queue_one_is_busy = false;
-
-        currentStartTimeOfServerOne = clock;
       }
 
       // Generate p*
@@ -383,9 +335,9 @@ public class NetworkFeedbackQueues {
         // Scehdule next arrival
         // event at time t for queue two
         futureEventList.add(new Event(QUEUE_TWO, FEEDBACK_EVENT, clock, event.serviceTime));
-      }
 
-      numberOfDeparturesFromServerOne += 1;
+        updateDelays(QUEUE_TWO, clock, event.serviceTime);
+      }
 
     } else { // QUEUE_TWO
 
@@ -404,8 +356,6 @@ public class NetworkFeedbackQueues {
 
         // Set LS_2(t) = 0
         queue_two_is_busy = false;
-
-        currentStartTimeOfServerTwo = clock;
       }
 
       // Generate q*
@@ -414,9 +364,9 @@ public class NetworkFeedbackQueues {
         // Scehdule next arrival
         // event at time t for queue one
         futureEventList.add(new Event(QUEUE_ONE, FEEDBACK_EVENT, clock, event.serviceTime));
-      }
 
-      numberOfDeparturesFromServerTwo += 1;
+        updateDelays(QUEUE_ONE, clock, event.serviceTime);
+      }
     }
 
     totalNumberOfDepartures += 1;
@@ -429,60 +379,34 @@ public class NetworkFeedbackQueues {
   /**
    * collectStatistics
    *
-   * collect and store statistics
+   * collect the queue size frequency
    * at the current clock time of
    * the simulation
    */
   private void collectStatistics() {
 
-    long size = queue_one.size();
-    if (size <= 5) {
-      frequencies.put(5, frequencies.get(5) + 1);
-    } else if (size <= 10) {
-      frequencies.put(10, frequencies.get(10) + 1);
-    } else if (size <= 15) {
-      frequencies.put(15, frequencies.get(15) + 1);
-    } else if (size <= 20) {
-      frequencies.put(20, frequencies.get(20) + 1);
-    } else if (size <= 25) {
-      frequencies.put(25, frequencies.get(25) + 1);
-    } else if (size > 25) {
-      frequencies.put(30, frequencies.get(30) + 1);
+    for (int i = 0; i < bins.length - 1; i++) {
+      if (queue_one.size() <= bins[i]) {
+        queue_one_histogram.put(bins[i], queue_one_histogram.get(bins[i]) + 1);
+        break;
+      }
     }
 
-    Statistic statisticOne = new Statistic(
-      QUEUE_ONE,
-      this.clock,
-      new ArrayList(this.futureEventList), // clone
-      this.numberOfDeparturesFromServerOne,
-      this.queue_one.size(),
-      queue_one_is_busy ? 1: 0,
-      delay,
-      outputFormat);
+    for (int i = 0; i < bins.length - 1; i++) {
+      if (queue_two.size() <= bins[i]) {
+        queue_two_histogram.put(bins[i], queue_two_histogram.get(bins[i]) + 1);
+        break;
+      }
+    }
 
-    Statistic statisticTwo = new Statistic(
-      QUEUE_TWO,
-      this.clock,
-      new ArrayList(this.futureEventList), // clone
-      this.numberOfDeparturesFromServerTwo,
-      this.queue_two.size(),
-      queue_two_is_busy ? 1: 0,
-      delay,
-      outputFormat);
+    if (queue_one.size() > bins[bins.length - 1]) {
+      queue_one_histogram.put(bins[bins.length - 1], queue_one_histogram.get(bins[bins.length - 1]) + 1);
+    }
 
-    statistics.add(statisticTwo);
-    statistics.add(statisticOne);
+    if (queue_two.size() > bins[bins.length - 1]) {
+      queue_two_histogram.put(bins[bins.length - 1], queue_two_histogram.get(bins[bins.length - 1]) + 1);
+    }
   }
-
-  /**
-   * getStatistics
-   *
-   * return list of gathered statistics
-   */
-  public List<Statistic> getStatistics() {
-    return statistics;
-  }
-
 
   private double getProbability() {
     return random.nextDouble();
@@ -496,8 +420,6 @@ public class NetworkFeedbackQueues {
    * @param time that event takes place
    */
   private static class Event {
-
-    private DecimalFormat df;
 
     /** Event Type **/
     public String type;
@@ -516,83 +438,6 @@ public class NetworkFeedbackQueues {
       this.time = time;
       this.serviceTime = serviceTime;
       this.queue = queue;
-
-      df = new DecimalFormat("#.#########");
-    }
-
-    @Override
-    public String toString() {
-      return "(" + type + "; queue " + queue + "; " + df.format(time) + ")";
-    }
-  }
-
-  /**
-   * Statistic
-   *
-   * Statistics of the simulation
-   * at a given clock time.
-   * @param current time
-   * @param future event list
-   * @param number of departures
-   * @param size of customer queue
-   */
-  public static class Statistic {
-
-    private DecimalFormat df;
-
-    private String format;
-
-    public int queue;
-    public double clock;
-    public List<Event> futureEventList;
-    public long numberOfDepartures;
-    public long queueSize;
-    public double delay;
-    public int serverInUse;
-
-    public Statistic(int queue, double clock, List<Event> futureEventList,
-      long numberOfDepartures, long queueSize, int serverInUse,
-      double delay, String format) {
-      this.queue = queue;
-      this.clock = clock;
-      this.futureEventList = futureEventList;
-      this.numberOfDepartures = numberOfDepartures;
-      this.queueSize = queueSize;
-      this.serverInUse = serverInUse;
-      this.delay = delay;
-      this.format = format;
-
-      df = new DecimalFormat("#.#########");
-    }
-
-    @Override
-    public String toString() {
-      String fel = "";
-      for (Event e : futureEventList) {
-        fel += e.toString() + "; ";
-      }
-
-      if (format.equals("csv") || format.equals("csv-no-header")) {
-        return queue +
-               "," + df.format(clock) +
-               ",[" + fel + "]" +
-               "," + numberOfDepartures +
-               "," + queueSize +
-               "," + serverInUse +
-               "," + delay;
-      } else if (format.equals("delay")) {
-        long numberOfPackets = queueSize + serverInUse;
-        return df.format(delay) +
-               "," + numberOfPackets;
-      } else {
-        return "Queue: " + queue +
-               "Clock: " + df.format(clock) +
-               ", Future Event List: [" + fel + "]" +
-               ", Number of Departures: " + numberOfDepartures +
-               ", Queue Size: " + queueSize +
-               ", Server in use: " + serverInUse +
-               ", Delay: " + delay;
-      }
     }
   }
 
@@ -607,7 +452,24 @@ public class NetworkFeedbackQueues {
     }
   }
 
-  public void printFrequencies() {
-    System.out.println(frequencies.toString());
+  public void printHistogramQueues() {
+  }
+
+  public void printResults() {
+    // Histogram Queues
+    System.out.println("QUEUE ONE: " + queue_one_histogram.toString());
+    System.out.println("QUEUE TWO: " + queue_two_histogram.toString());
+
+    // Delays
+    System.out.println("Average delay for queue 1: " + totalDelay[0] / delayCount[0]);
+    System.out.println("Average delay for queue 2: " + totalDelay[1] / delayCount[1]);
+  }
+
+  private void updateDelays(int i, double arrivalTime, double serviceTime) {
+    delay[i] = Math.max(0, delay[i] + previousArrivalTime[i] + previousServiceTime[i] - arrivalTime);
+    totalDelay[i] += delay[i];
+    delayCount[i] += 1;
+    previousArrivalTime[i] = arrivalTime;
+    previousServiceTime[i] = serviceTime;
   }
 }
