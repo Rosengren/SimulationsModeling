@@ -470,15 +470,7 @@ public class NetworkFeedbackQueues {
     // Histogram Queues
 	  String result = "";
 	try {
-		
-		Double q1result = (double)queue1Total / (double)statsCounter;
-		Double q2result = (double)queue2Total / (double)statsCounter;
-		
-	result += "QUEUE ONE: " + queue_one_histogram.toString() + 
-			"\nQUEUE TWO: " + queue_two_histogram.toString() + "\n\n";
-	result += "Q1 average packets in system: " + q1result + 
-			"\nQ2 average packets in system: " + q2result + "\n\n";
-	result += "Average delay for queue 1: " + totalDelay[0] / delayCount[0] +
+	result += "\nAverage delay for queue 1: " + totalDelay[0] / delayCount[0] +
 			"\nAverage delay for queue 2: " + totalDelay[1] / delayCount[1] + "\n\n";
 	}
 	catch(Exception e) {

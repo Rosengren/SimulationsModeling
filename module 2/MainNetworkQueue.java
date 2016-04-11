@@ -80,7 +80,11 @@ public class MainNetworkQueue {
     EventGenerator generator1, generator2;
 
     try {
-    BufferedWriter writer = new BufferedWriter(new FileWriter(new File("output.txt").getAbsoluteFile()));
+    BufferedWriter writer = new BufferedWriter(new FileWriter(new File("output.csv").getAbsoluteFile()));
+    
+    TreeMap<Integer,Long> q1 = new TreeMap<>();
+    TreeMap<Integer,Long> q2 = new TreeMap<>();
+    double delay = 0;
     
     for (int i = 0; i < replicas; i++) {
       if (generatorType.equals("COR")) {
@@ -93,10 +97,45 @@ public class MainNetworkQueue {
 
       NetworkFeedbackQueues server = new NetworkFeedbackQueues(generator1, generator2, p, q, departures);
       server.run();
+      
+      Map<Integer,Long> q1Iteration = server.getQueueOneHistogram();
+      for (int q1key : q1Iteration.keySet()) {
+    	  q1.put(q1key, (q1.containsKey(q1key)) ? 
+    			  q1.get(q1key) + (q1Iteration.get(q1key) / replicas) :
+    			  q1Iteration.get(q1key) / replicas
+    			  );
+      }
+      
+      Map<Integer,Long> q2Iteration = server.getQueueTwoHistogram();
+      for (int q2key : q2Iteration.keySet()) {
+    	  q2.put(q2key, (q2.containsKey(q2key)) ? 
+    			  q2.get(q2key) + (q2Iteration.get(q2key) / replicas) :
+    			  q2Iteration.get(q2key) / replicas
+    			  );
+      }
+      
+      delay += (server.getAverageDelay() / (double)replicas);
 
-      System.out.println("\n");
-      writer.write(server.printResults());
+      // Histogram Queues
+   	  String result = "";
+   		
+   	  
     }
+    String result = "";
+    result += "Queue1\n";
+      for (int i : q1.keySet()) {
+		result += i + "," + q1.get(i) + "\n";
+	  }
+	  result += "\nQueue2\n";
+	  for (int i : q2.keySet()) {
+		result += i + "," + q2.get(i) + "\n";
+	  }
+	  result += "\nAverage delay for system: " + delay;
+    
+    writer.write("Simulation Averages\n");
+    writer.write(result);
+    
+    writer.close();
 
     } catch (Exception e) {
   	  e.printStackTrace();
