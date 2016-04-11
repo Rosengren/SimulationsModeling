@@ -79,6 +79,9 @@ public class MainNetworkQueue {
 
     EventGenerator generator1, generator2;
 
+    try {
+    BufferedWriter writer = new BufferedWriter(new FileWriter(new File("output.txt").getAbsoluteFile()));
+    
     for (int i = 0; i < replicas; i++) {
       if (generatorType.equals("COR")) {
         generator1 = new CorrelatedEventGenerator(lambda, mu, XI, INTERVAL);
@@ -92,7 +95,11 @@ public class MainNetworkQueue {
       server.run();
 
       System.out.println("\n");
-      server.printResults();
+      writer.write(server.printResults());
+    }
+
+    } catch (Exception e) {
+  	  e.printStackTrace();
     }
   }
 }

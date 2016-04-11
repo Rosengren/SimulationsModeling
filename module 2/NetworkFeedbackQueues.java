@@ -47,8 +47,8 @@ public class NetworkFeedbackQueues {
   /** number of departures so far **/
   private long totalNumberOfDepartures;
 
-  private Map<Integer, Long> queue_one_histogram;
-  private Map<Integer, Long> queue_two_histogram;
+  private TreeMap<Integer, Long> queue_one_histogram;
+  private TreeMap<Integer, Long> queue_two_histogram;
   private int[] bins = {5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55};
 
   /** used to calculate delays **/
@@ -57,6 +57,11 @@ public class NetworkFeedbackQueues {
   private double[] delayCount;
   private double[] previousServiceTime;
   private double[] previousArrivalTime;
+  
+  /** used to calculate queue size average **/
+  private int queue1Total = 0;
+  private int queue2Total = 0;
+  private int statsCounter = 0;
 
   /**
    * SingleServerQueue
@@ -90,8 +95,8 @@ public class NetworkFeedbackQueues {
     this.p = p;
     this.q = q;
 
-    queue_one_histogram = new HashMap<>();
-    queue_two_histogram = new HashMap<>();
+    queue_one_histogram = new TreeMap<>();
+    queue_two_histogram = new TreeMap<>();
 
     // Create bins in hashmap
     for (int i = 0; i < bins.length; i++) {
@@ -337,6 +342,7 @@ public class NetworkFeedbackQueues {
         futureEventList.add(new Event(QUEUE_TWO, FEEDBACK_EVENT, clock, event.serviceTime));
 
         updateDelays(QUEUE_TWO, clock, event.serviceTime);
+        delayCount[QUEUE_TWO] -= 1;
       }
 
     } else { // QUEUE_TWO
@@ -364,8 +370,9 @@ public class NetworkFeedbackQueues {
         // Scehdule next arrival
         // event at time t for queue one
         futureEventList.add(new Event(QUEUE_ONE, FEEDBACK_EVENT, clock, event.serviceTime));
-
+        
         updateDelays(QUEUE_ONE, clock, event.serviceTime);
+        delayCount[QUEUE_ONE] -= 1;
       }
     }
 
@@ -385,6 +392,10 @@ public class NetworkFeedbackQueues {
    */
   private void collectStatistics() {
 
+	queue1Total += queue_one.size();
+	queue2Total += queue_two.size();
+	statsCounter ++;
+	  
     for (int i = 0; i < bins.length - 1; i++) {
       if (queue_one.size() <= bins[i]) {
         queue_one_histogram.put(bins[i], queue_one_histogram.get(bins[i]) + 1);
@@ -455,14 +466,26 @@ public class NetworkFeedbackQueues {
   public void printHistogramQueues() {
   }
 
-  public void printResults() {
+  public String printResults() {
     // Histogram Queues
-    System.out.println("QUEUE ONE: " + queue_one_histogram.toString());
-    System.out.println("QUEUE TWO: " + queue_two_histogram.toString());
-
-    // Delays
-    System.out.println("Average delay for queue 1: " + totalDelay[0] / delayCount[0]);
-    System.out.println("Average delay for queue 2: " + totalDelay[1] / delayCount[1]);
+	  String result = "";
+	try {
+		
+		Double q1result = (double)queue1Total / (double)statsCounter;
+		Double q2result = (double)queue2Total / (double)statsCounter;
+		
+	result += "QUEUE ONE: " + queue_one_histogram.toString() + 
+			"\nQUEUE TWO: " + queue_two_histogram.toString() + "\n\n";
+	result += "Q1 average packets in system: " + q1result + 
+			"\nQ2 average packets in system: " + q2result + "\n\n";
+	result += "Average delay for queue 1: " + totalDelay[0] / delayCount[0] +
+			"\nAverage delay for queue 2: " + totalDelay[1] / delayCount[1] + "\n\n";
+	}
+	catch(Exception e) {
+		e.printStackTrace();
+	}
+	
+	return result;
   }
 
   public Map<Integer, Long> getQueueOneHistogram() {
@@ -474,12 +497,16 @@ public class NetworkFeedbackQueues {
   }
 
   public double getAverageDelay() {
-    return (totalDelay[0] / delayCount[0] + totalDelay[1] / delayCount[1]) / 2;
+    return (totalDelay[0] + totalDelay[1]) / (delayCount[0] + delayCount[1]);
   }
 
   private void updateDelays(int i, double arrivalTime, double serviceTime) {
+	//System.out.println("Delay = " + delay[i] + " + " + 
+		//				previousArrivalTime[i] + " + " +
+			//			previousServiceTime[i] + " - " + 
+				//		arrivalTime);
     delay[i] = Math.max(0, delay[i] + previousArrivalTime[i] + previousServiceTime[i] - arrivalTime);
-    totalDelay[i] += delay[i];
+    totalDelay[i] += (delay[i] + serviceTime);
     delayCount[i] += 1;
     previousArrivalTime[i] = arrivalTime;
     previousServiceTime[i] = serviceTime;
